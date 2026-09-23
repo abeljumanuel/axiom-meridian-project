@@ -1,10 +1,8 @@
 # Work Tickets
 
-> **Note:** this file is kept as the historical record of work through TICKET-017. Going forward, new work is tracked as [OpenSpec](../openspec/) change proposals under `openspec/changes/`; the six Backlog tickets below (TICKET-012 through TICKET-017) have corresponding change proposals there.
+Tickets are grouped by status. **Delivered** tickets reflect work already completed on Axiom Meridian and are kept here as a record of the project's evolution, with full acceptance criteria. **Backlog** tickets are the next candidates for implementation; going forward these are tracked as [OpenSpec](../openspec/) change proposals (see the Backlog section below), so their formal acceptance criteria live there instead of being duplicated here. Each ticket links back to the user story it fulfills where applicable.
 
-Tickets are grouped by status. **Delivered** tickets reflect work already completed on Axiom Meridian and are kept here as a record of the project's evolution; **Backlog** tickets are the next candidates for implementation. Each ticket links back to the user story it fulfills where applicable.
-
-Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `Description`, `Acceptance criteria`.
+Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `Description`, plus `Acceptance criteria` (Delivered) or `OpenSpec change` (Backlog).
 
 ---
 
@@ -84,43 +82,41 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 
 ## Backlog
 
+Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change proposal under `openspec/changes/`, which holds the formal, testable acceptance criteria (as delta specs) plus the design and task breakdown. The ticket entries here stay short — ID, description, status — and defer to OpenSpec for the detail.
+
 ### TICKET-012 — Windows one-line installer
 - **Type:** Feature | **Priority:** Should | **Status:** Backlog
 - **Description:** `scripts/install.sh` covers Linux/macOS; Windows currently requires manual installation. Provide a PowerShell equivalent (`install.ps1`) with the same client auto-detection (Claude Code, VSCode, OpenCode, Kimi CLI).
-- **Acceptance criteria:** one-line `irm ... | iex` install succeeds on a clean Windows + Python 3.11 environment and registers at least one detected MCP client.
+- **OpenSpec change:** [`add-windows-installer`](../openspec/changes/add-windows-installer/)
 
 ### TICKET-013 — V2 semantic search upgrade
 - **Type:** Feature / Performance | **Priority:** Could | **Status:** Backlog
 - **Related story:** US-F1
 - **Description:** When the rule/lesson volume exceeds roughly 1,000 entries or more accurate multilingual retrieval is needed: evaluate migrating the embedding model to `BAAI/bge-m3` (567M params, 100+ languages) and evaluate alternative local vector stores (LanceDB, Qdrant local).
-- **Acceptance criteria:** no changes required to tool signatures or the SQLite schema; a documented benchmark shows retrieval quality improvement over `bge-small-en-v1.5` on a representative rule set.
+- **OpenSpec change:** [`upgrade-semantic-search-v2`](../openspec/changes/upgrade-semantic-search-v2/)
 
 ### TICKET-014 — Semantic clustering for redundancy detection
 - **Type:** Feature | **Priority:** Could | **Status:** Backlog
 - **Description:** Cluster rules by embedding similarity to surface likely-duplicate or overlapping rules across scopes, as a curator-facing report rather than an automatic merge.
-- **Acceptance criteria:** produces a report of candidate duplicate/overlapping rule pairs above a similarity threshold, with no automatic write.
+- **OpenSpec change:** [`add-redundancy-detection`](../openspec/changes/add-redundancy-detection/)
 
 ### TICKET-015 — Networked (non-localhost) deployment hardening
 - **Type:** Feature / Security | **Priority:** Could | **Status:** Backlog
 - **Related story:** US-E3
 - **Description:** The HTTP/SSE transport is currently scoped to `127.0.0.1` by design. Evaluate what's required (TLS, multi-token/per-client auth, rate limiting) to safely support a shared, networked deployment for a team, without weakening the current localhost-only default.
-- **Acceptance criteria:** a documented threat model and, if approved, an opt-in configuration flag — the localhost-only, single-token behavior remains the default.
+- **OpenSpec change:** [`harden-networked-deployment`](../openspec/changes/harden-networked-deployment/)
 
 ### TICKET-016 — Cross-reference `source_ref` with Engram observations
 - **Type:** Feature | **Priority:** Could | **Status:** Backlog
 - **Description:** Where Engram (episodic session memory) is present, allow a rule/lesson's `source_ref` to resolve to an Engram `observation_id` for cross-tool traceability, without introducing a hard dependency on Engram.
-- **Acceptance criteria:** Meridian functions identically with Engram absent; when present, `get_rule_context` can optionally surface the linked observation.
+- **OpenSpec change:** [`link-source-ref-to-engram`](../openspec/changes/link-source-ref-to-engram/)
 
 ### TICKET-017 — Read-only observability dashboard
 - **Type:** Feature | **Priority:** Could | **Status:** Backlog
 - **Related story:** US-H1
-- **Description:** Build a small, standalone frontend for humans (not agents) to visually inspect Meridian's state without writing Python snippets: server/process health, the resolved scope hierarchy, active/deprecated rule and lesson counts per scope, pending proposals awaiting review, and a rendered usage manual (README/PRD). It runs as a separate local process — a thin API layer (e.g. FastAPI) that imports and calls the existing `knowledge_consumption` functions as a library, plus a minimal frontend (e.g. server-rendered templates or HTMX) — and never speaks the MCP protocol or performs writes.
+- **Description:** Build a small, standalone frontend for humans (not agents) to visually inspect Meridian's state without writing Python snippets — server health, scope hierarchy, rule/lesson counts, pending proposals, a rendered usage manual, and an embedding projector. Runs as a separate local process, reusing `knowledge_consumption` functions as a library; never speaks the MCP protocol or performs writes.
 - **Explicitly deferred because:** it sits outside the core MCP/knowledge-governance scope of the capstone (agent-facing tools, scope resolution, governed writes, RAG) and would add a second stack (HTTP API + frontend + its own auth/testing surface) without changing what an agent can do. Treated as an optional companion, evaluated only if time remains after the core backlog above.
-- **Acceptance criteria:**
-  - Read-only: no code path in the dashboard calls `write`-level tools (`approve_proposal`, `index_*`, `promote_rule`, `generate_embeddings`, ...).
-  - Runs and renders correctly against a populated `KNOWLEDGE_BASE_PATH` with zero changes to `meridian.db` or any `.md` file.
-  - Bound to `127.0.0.1` by default, matching the security posture of the existing HTTP/SSE transport ([System Architecture § Transport](03-system-architecture.md#transport)).
-  - Manual/usage view is generated from existing docs (this `docs/` folder and/or the project README), not duplicated by hand.
+- **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
 
 ## Related Documents
 
@@ -129,3 +125,4 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 - [System Architecture](03-system-architecture.md)
 - [Data Model](04-data-model.md)
 - [User Stories](05-user-stories.md)
+- [OpenSpec specs and changes](../openspec/)
