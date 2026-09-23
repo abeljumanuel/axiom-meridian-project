@@ -16,7 +16,7 @@ All baseline documentation lives in [`docs/`](docs/):
 | [02 · Product Description](docs/02-product-description.md) | Problem statement, solution, core capabilities, target users. |
 | [03 · System Architecture](docs/03-system-architecture.md) | Layered architecture, read/write flow diagrams, security model, tech stack, architecture decision log. |
 | [04 · Data Model](docs/04-data-model.md) | Entity-relationship diagram, table reference, scope hierarchy, atomic knowledge block format. |
-| [05 · User Stories](docs/05-user-stories.md) | Requirements by epic, in `As a / I want / so that` format with acceptance criteria. |
+| [05 · User Stories](docs/05-user-stories.md) | Requirements by epic, in `As a / I want / so that` format; formal acceptance criteria live in [`openspec/`](openspec/). |
 | [06 · Work Tickets](docs/06-work-tickets.md) | Delivered milestones and backlog, traced to user stories and architecture decisions. |
 
 ## Spec-driven change tracking
