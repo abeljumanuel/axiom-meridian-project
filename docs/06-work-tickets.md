@@ -78,6 +78,38 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
   - `approve_proposal` on an `update` proposal replaces the block in the source file, updates the row via `UPDATE` (not `INSERT`), and records `change_type="UPDATED"` in history.
   - Existing (non-update) proposal flows remain unchanged — regression-covered in `tests/integration/test_proposals_flow.py`.
 
+### TICKET-018 — Cross-platform installation and distribution
+- **Type:** Feature | **Priority:** Must | **Status:** Done
+- **Description:** Make Meridian installable in one command on Linux, macOS and Windows without cloning the repo, and distributable through agent-facing channels, while the server stays self-hosted. This covers:
+  - The semantic-search libraries (`torch`, `sentence-transformers`, `chromadb`) become an optional `[rag]` extra. The base install drops from about 1.1 GB to 59 MB, and every RAG path degrades cleanly without it (`RAG_NOT_INSTALLED`, SQL fallback).
+  - New cross-platform `meridian setup` (client detection and configuration for Claude Code, VSCode, Cursor, OpenCode and Kimi CLI, knowledge-base creation, no-clobber example seeding) and `meridian doctor` (read-only diagnostics).
+  - `install.sh` is now a thin wrapper around `uv tool install` and `meridian setup`.
+  - PyPI packaging with a Trusted Publishing release workflow, and a CI workflow across the three OSes.
+  - A distributable skill, a Claude Code plugin with a marketplace, and an MCP Registry `server.json`.
+  - Released as 0.1.0 (PR #3, PR #4): published to PyPI (`uv tool install axiom-meridian`), listed as `io.github.abeljumanuel/axiom-meridian` in the MCP Registry, the Claude Code plugin is installable from the repo's own marketplace, and CI is green on Linux, macOS and Windows. Third-party marketplace listings and the skill zip upload are deferred until a destination is chosen.
+- **OpenSpec change:** [`improve-installation-and-distribution`](../openspec/changes/archive/2026-10-15-improve-installation-and-distribution/)
+
+### TICKET-019 — Relicense to Apache License 2.0
+- **Type:** Chore / Legal | **Priority:** Must | **Status:** Done
+- **Description:** Move from MIT, which is declared but has no `LICENSE` file, to Apache-2.0 before the first public release: add `LICENSE` and `NOTICE` (attribution plus a trademark statement for "Axiom Meridian" / "Axiom JUMA"), PEP 639 package metadata, SPDX headers enforced by a test, a `CONTRIBUTING.md` with a DCO sign-off, and the dependency-compatibility review. It landed before TICKET-018's first PyPI release (commit `f800112`, PR #3), so 0.1.0 shipped under Apache-2.0. All preconditions are confirmed: sole authorship, the rights belong to the author (not the academic program), and the legal name.
+- **OpenSpec change:** [`change-license-to-apache-2`](../openspec/changes/archive/2026-10-15-change-license-to-apache-2/)
+
+### Delivered without a ticket
+
+These OpenSpec changes were completed and archived with the 0.1.0 release but never had a ticket of their own; they're listed here so the record is complete.
+
+- [`add-actor-identity-tracking`](../openspec/changes/archive/2026-10-15-add-actor-identity-tracking/) — Record who originated each proposal, history entry and tool access (an actor column on `pending_proposals`, `rule_history`, `lesson_history` and `access_log`), so a future networked mode can attribute changes without backfilling history.
+- [`add-rule-lesson-deprecation`](../openspec/changes/archive/2026-10-15-add-rule-lesson-deprecation/) — Deprecate a rule or lesson without changing its scope (`deprecate_rule`), exclude deprecated entries from semantic search, and record `DEPRECATED` history so the audit log surfaces them (ADR-007).
+- [`add-server-version-visibility`](../openspec/changes/archive/2026-10-15-add-server-version-visibility/) — New `get_server_info` tool and richer `meridian version` output (version, git commit, dirty flag), with a `stale` flag when the code on disk is newer than what the running server loaded.
+- [`fix-approve-proposal-stale-embeddings`](../openspec/changes/archive/2026-10-15-fix-approve-proposal-stale-embeddings/) — `approve_proposal` now refreshes the ChromaDB embedding for created and updated rules/lessons, so semantic search sees new rules and current tags.
+- [`fix-approve-update-stale-offsets`](../openspec/changes/archive/2026-10-15-fix-approve-update-stale-offsets/) — Approving several UPDATE proposals against the same `.md` file no longer corrupts it: later blocks' offsets are shifted after an in-place rewrite (`shift_offsets_after`).
+- [`fix-atomic-parser-plain-code-regex`](../openspec/changes/archive/2026-10-15-fix-atomic-parser-plain-code-regex/) — The atomic parser accepts the legacy plain-code headers (`RN-NNN` / `LL-NNN`) instead of silently dropping them.
+- [`fix-installer-claude-mcp-check-and-url`](../openspec/changes/archive/2026-10-15-fix-installer-claude-mcp-check-and-url/) — The installer's Claude Code "already configured" check matches the real `claude mcp list` output and warns on a mismatched registration; the remote-install URL in the usage text is fixed.
+- [`fix-installer-seed-overwrites-existing-kb`](../openspec/changes/archive/2026-10-15-fix-installer-seed-overwrites-existing-kb/) — Seeding the example knowledge base never overwrites a user's existing `.md` files (no-clobber).
+- [`fix-installer-setup-venv-abort-on-decline`](../openspec/changes/archive/2026-10-15-fix-installer-setup-venv-abort-on-decline/) — Declining to recreate an existing virtual environment no longer aborts the installer.
+- [`improve-approve-proposal-feedback`](../openspec/changes/archive/2026-10-15-improve-approve-proposal-feedback/) — `approve_proposal`'s response reports whether the embedding was updated (`embedded`), and in-place block rewrites keep the original trailing blank lines.
+- [`warm-up-embedder-on-server-start`](../openspec/changes/archive/2026-10-15-warm-up-embedder-on-server-start/) — Warm up the embedding model when the server starts, so the first semantic query no longer pays the lazy-load cost (up to ~35 s, causing client timeouts).
+
 ---
 
 ## Backlog
@@ -87,7 +119,7 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 ### TICKET-012 — Windows one-line installer
 - **Type:** Feature | **Priority:** Should | **Status:** Superseded by [TICKET-018](#ticket-018--cross-platform-installation-and-distribution)
 - **Description:** `scripts/install.sh` covered only Linux/macOS, and Windows required manual installation. The original plan was a PowerShell port (`install.ps1`) with the same client auto-detection. TICKET-018 covers Windows without it: client detection and configuration moved into the cross-platform `meridian setup` command (Python), so on Windows installing is `uv tool install axiom-meridian` followed by `meridian setup`, and a `.ps1` would only duplicate that logic.
-- **OpenSpec change:** `add-windows-installer` (removed — superseded by [`improve-installation-and-distribution`](../openspec/changes/improve-installation-and-distribution/))
+- **OpenSpec change:** `add-windows-installer` (removed — superseded by [`improve-installation-and-distribution`](../openspec/changes/archive/2026-10-15-improve-installation-and-distribution/))
 
 ### TICKET-013 — V2 semantic search upgrade
 - **Type:** Feature / Performance | **Priority:** Could | **Status:** Backlog
@@ -117,22 +149,6 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **Description:** Build a small, standalone frontend for humans (not agents) to visually inspect Meridian's state without writing Python snippets — server health, scope hierarchy, rule/lesson counts, pending proposals, a rendered usage manual, and an embedding projector. Runs as a separate local process, reusing `knowledge_consumption` functions as a library; never speaks the MCP protocol or performs writes.
 - **Explicitly deferred because:** it sits outside the core MCP/knowledge-governance scope of the capstone (agent-facing tools, scope resolution, governed writes, RAG) and would add a second stack (HTTP API + frontend + its own auth/testing surface) without changing what an agent can do. Treated as an optional companion, evaluated only if time remains after the core backlog above.
 - **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
-
-### TICKET-018 — Cross-platform installation and distribution
-- **Type:** Feature | **Priority:** Must | **Status:** In progress
-- **Description:** Make Meridian installable in one command on Linux, macOS and Windows without cloning the repo, and distributable through agent-facing channels, while the server stays self-hosted. This covers:
-  - The semantic-search libraries (`torch`, `sentence-transformers`, `chromadb`) become an optional `[rag]` extra. The base install drops from about 1.1 GB to 59 MB, and every RAG path degrades cleanly without it (`RAG_NOT_INSTALLED`, SQL fallback).
-  - New cross-platform `meridian setup` (client detection and configuration for Claude Code, VSCode, Cursor, OpenCode and Kimi CLI, knowledge-base creation, no-clobber example seeding) and `meridian doctor` (read-only diagnostics).
-  - `install.sh` is now a thin wrapper around `uv tool install` and `meridian setup`.
-  - PyPI packaging with a Trusted Publishing release workflow, and a CI workflow across the three OSes.
-  - A distributable skill, a Claude Code plugin with a marketplace, and an MCP Registry `server.json`.
-  - Implementation is complete. What remains is publishing (PyPI account, first release, registry and marketplace submissions), the first CI run on GitHub, and a clean-container smoke test.
-- **OpenSpec change:** [`improve-installation-and-distribution`](../openspec/changes/improve-installation-and-distribution/)
-
-### TICKET-019 — Relicense to Apache License 2.0
-- **Type:** Chore / Legal | **Priority:** Must | **Status:** Backlog (specified, ready to implement)
-- **Description:** Move from MIT, which is declared but has no `LICENSE` file, to Apache-2.0 before the first public release: add `LICENSE` and `NOTICE` (attribution plus a trademark statement for "Axiom Meridian" / "Axiom JUMA"), PEP 639 package metadata, SPDX headers enforced by a test, a `CONTRIBUTING.md` with a DCO sign-off, and the dependency-compatibility review. It has to land before TICKET-018's first PyPI release, because anything published under MIT stays MIT. All preconditions are confirmed: sole authorship, the rights belong to the author (not the academic program), and the legal name.
-- **OpenSpec change:** [`change-license-to-apache-2`](../openspec/changes/change-license-to-apache-2/)
 
 ## Related Documents
 
