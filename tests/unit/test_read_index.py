@@ -97,7 +97,7 @@ def test_check_files_fresh_false_for_untracked_file():
     conn, kb_path = _temp_db()
     try:
         target = kb_path / "untracked.md"
-        target.write_text("hi")
+        target.write_text("hi", encoding="utf-8")
 
         result = check_files_fresh(conn, [str(target)])
         assert result == {str(target): False}
@@ -201,7 +201,7 @@ def test_backfill_read_index_from_existing_data():
     conn, kb_path = _temp_db()
     try:
         md_path = kb_path / "knowledge-base" / "global" / "general.md"
-        md_path.write_text("## RN-GLOBAL-001\nsome text\n")
+        md_path.write_text("## RN-GLOBAL-001\nsome text\n", encoding="utf-8")
 
         conn.execute(
             "INSERT INTO rules (id, scope_id, code, text, category, severity, "
@@ -268,7 +268,7 @@ def test_refresh_indexed_file_used_by_reindexing():
     conn, kb_path = _temp_db()
     try:
         target = kb_path / "note.md"
-        target.write_text("content")
+        target.write_text("content", encoding="utf-8")
 
         refresh_indexed_file(conn, target)
         conn.commit()

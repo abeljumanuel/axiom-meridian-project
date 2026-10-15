@@ -103,7 +103,7 @@ def test_index_legacy_creates_proposals(tmp_kb):
 ### Rule 2: Use constructor injection
 - **Category**: di
 - **Severity**: medium
-"""
+""", encoding="utf-8"
     )
 
     result = index_rules_from_markdown(
@@ -122,7 +122,7 @@ def test_index_legacy_creates_proposals(tmp_kb):
 def test_approve_proposal_writes_md(tmp_kb):
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")  # empty seed file
+    dest_file.write_text("", encoding="utf-8")  # empty seed file
 
     prop_id = "prop-0001"
     conn.execute(
@@ -176,7 +176,7 @@ def test_approve_proposal_writes_md(tmp_kb):
 def test_positional_read_after_approve(tmp_kb):
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     prop_id = "prop-0001"
     conn.execute(
@@ -364,7 +364,7 @@ def test_query_rules_scope_resolution(tmp_kb):
         "**Aplica a:** **/*.java\n"
         "**Tags:** resteasy, http\n"
         "**Fuente:** manual\n"
-        "**Regla:** Use RestEasy client for HTTP calls.\n"
+        "**Regla:** Use RestEasy client for HTTP calls.\n", encoding="utf-8"
     )
     index_rules_from_markdown(
         str(quarkus_file), default_scope_id="global-quarkus", mode="atomic")
@@ -379,7 +379,7 @@ def test_query_rules_scope_resolution(tmp_kb):
         "**Aplica a:** **/*\n"
         "**Tags:** general\n"
         "**Fuente:** manual\n"
-        "**Regla:** Follow company guidelines.\n"
+        "**Regla:** Follow company guidelines.\n", encoding="utf-8"
     )
     index_rules_from_markdown(
         str(global_file), default_scope_id="global", mode="atomic"
@@ -394,7 +394,7 @@ def test_query_rules_scope_resolution(tmp_kb):
         "**Aplica a:** **/*.java\n"
         "**Tags:** project_example, payment\n"
         "**Fuente:** manual\n"
-        "**Regla:** Validate PSP response before processing.\n"
+        "**Regla:** Validate PSP response before processing.\n", encoding="utf-8"
     )
     index_rules_from_markdown(
         str(project_example_file), default_scope_id="project-project-example", mode="atomic"
@@ -435,7 +435,7 @@ def test_query_rules_stale_index(tmp_kb):
     index_rules_from_markdown(filepath, default_scope_id="global-java", mode="atomic")
 
     md_path = kb_path / "knowledge-base" / "global" / "java.md"
-    md_path.write_text("## RN-JAVA-001\n**Regla:** Shortened.\n")
+    md_path.write_text("## RN-JAVA-001\n**Regla:** Shortened.\n", encoding="utf-8")
 
     result = query_rules("global-java", detail="full")
     data = json.loads(result)
@@ -454,12 +454,12 @@ def test_get_rule_timeline(tmp_kb):
     index_rules_from_markdown(filepath, default_scope_id="global-java", mode="atomic")
 
     md_path = kb_path / "knowledge-base" / "global" / "java.md"
-    original = md_path.read_text()
+    original = md_path.read_text(encoding="utf-8")
     modified = original.replace(
         "All code must be synchronous/imperative.",
         "All code must be synchronous and imperative only.",
     )
-    md_path.write_text(modified)
+    md_path.write_text(modified, encoding="utf-8")
 
     index_rules_from_markdown(filepath, default_scope_id="global-java", mode="atomic")
 
@@ -476,7 +476,7 @@ def test_query_rules_tags_filter_is_exact_not_substring(tmp_kb):
     a rule tagged only "golang" must not match tags="go"."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "go.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     for code_hint, tag in (("go-rule", "go"), ("golang-rule", "golang")):
         prop_id = f"prop-{code_hint}"

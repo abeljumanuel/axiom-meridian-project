@@ -117,7 +117,7 @@ def test_field_database_migrates_cleanly_end_to_end(tmp_path, monkeypatch):
     java_md = kb_path / "knowledge-base" / "global" / "java.md"
     block1 = "## RN-JAVA-001\n**Regla:** Use records for DTOs.\n"
     block2 = "## RN-JAVA-002\n**Regla:** Avoid checked exceptions.\n"
-    java_md.write_text(block1 + "\n" + block2)
+    java_md.write_text(block1 + "\n" + block2, encoding="utf-8")
     offset2 = len(block1.encode("utf-8")) + 1
 
     raw.execute(
@@ -146,7 +146,7 @@ def test_field_database_migrates_cleanly_end_to_end(tmp_path, monkeypatch):
 
     lessons_md = kb_path / "lessons" / "global" / "general.md"
     lesson_block = "## LL-GLOBAL-001\n**Qué pasó:** Deploy failed silently.\n"
-    lessons_md.write_text(lesson_block)
+    lessons_md.write_text(lesson_block, encoding="utf-8")
     raw.execute(
         "INSERT INTO lessons (id, scope_id, code, what_happened, tags, "
         "file_path, file_offset, byte_length) VALUES "

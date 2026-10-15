@@ -84,7 +84,7 @@ class TestAutoKBPath:
         monkeypatch.setattr(sys, "platform", "linux")
         from meridian.config import _get_default_kb_path
         path = _get_default_kb_path()
-        assert ".local/share/meridian" in str(path)
+        assert path.as_posix().endswith(".local/share/meridian")
 
     def test_ensure_kb_structure_creates_dirs(self, tmp_path):
         """_ensure_kb_structure should create all required directories."""

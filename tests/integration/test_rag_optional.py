@@ -70,7 +70,7 @@ def tmp_kb(tmp_path, monkeypatch):
     conn = get_connection(db_path)
 
     rules_md = kb_path / "knowledge-base" / "global" / "java.md"
-    rules_md.write_text(_RULES_MD)
+    rules_md.write_text(_RULES_MD, encoding="utf-8")
     index_rules_from_markdown(str(rules_md), default_scope_id="global-java", mode="atomic")
 
     yield kb_path, conn
@@ -107,7 +107,7 @@ def test_generate_embeddings_returns_rag_not_installed(no_rag, server_conn, capl
 
 def test_approve_new_proposal_without_rag_reports_embedded_null(no_rag, tmp_kb, caplog):
     kb_path, conn = tmp_kb
-    (kb_path / "knowledge-base" / "global" / "quarkus.md").write_text("")
+    (kb_path / "knowledge-base" / "global" / "quarkus.md").write_text("", encoding="utf-8")
     conn.execute(
         "INSERT INTO pending_proposals "
         "(id, type, scope_id, proposed_text, metadata, source_type) "

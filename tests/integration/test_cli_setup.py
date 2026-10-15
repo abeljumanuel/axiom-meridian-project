@@ -48,12 +48,12 @@ def test_seeding_into_empty_kb_copies_and_indexes(tmp_kb):
 
 def test_seeding_never_overwrites_existing_file(tmp_kb, capsys):
     mine = tmp_kb / "knowledge-base" / "global" / "java.md"
-    mine.write_text("## my own notes, not a rule block\n")
+    mine.write_text("## my own notes, not a rule block\n", encoding="utf-8")
 
     seeded, skipped = setup_cli.seed_examples(tmp_kb)
 
     assert skipped == 1
-    assert mine.read_text() == "## my own notes, not a rule block\n"
+    assert mine.read_text(encoding="utf-8") == "## my own notes, not a rule block\n"
     assert _rule_count("global-java") == 0  # not reindexed
     out = capsys.readouterr().out
     assert "Skipping java.md" in out and "already exists" in out
@@ -76,9 +76,9 @@ def test_setup_end_to_end_configures_detected_client(tmp_kb, tmp_path, monkeypat
     assert doc["mcpServers"]["meridian"]["env"]["KNOWLEDGE_BASE_PATH"] == str(tmp_kb)
 
     # Re-running is a no-op: already configured, file untouched.
-    before = client.config_path.read_text()
+    before = client.config_path.read_text(encoding="utf-8")
     assert setup_cli.run(["--yes", "--no-seed"]) == 0
-    assert client.config_path.read_text() == before
+    assert client.config_path.read_text(encoding="utf-8") == before
 
 
 def test_unknown_option_is_rejected(capsys):

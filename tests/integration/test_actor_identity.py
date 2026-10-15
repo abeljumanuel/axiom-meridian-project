@@ -92,12 +92,12 @@ def test_index_rules_from_markdown_create_and_update_record_actor_id(tmp_kb):
     assert all(row[0] == me for row in created)
 
     md_path = kb_path / "knowledge-base" / "global" / "java.md"
-    original = md_path.read_text()
+    original = md_path.read_text(encoding="utf-8")
     md_path.write_text(
         original.replace(
             "All code must be synchronous/imperative.",
             "All code must be synchronous and imperative only.",
-        )
+        ), encoding="utf-8"
     )
     index_rules_from_markdown(filepath, default_scope_id="global-java", mode="atomic")
 
@@ -111,7 +111,7 @@ def test_index_rules_from_markdown_create_and_update_record_actor_id(tmp_kb):
 def test_index_lessons_from_markdown_create_and_update_record_actor_id(tmp_kb):
     kb_path, conn = tmp_kb
     md_path = kb_path / "lessons" / "global" / "java.md"
-    md_path.write_text(_LESSON_BLOCK)
+    md_path.write_text(_LESSON_BLOCK, encoding="utf-8")
     filepath = str(md_path)
 
     index_lessons_from_markdown(filepath, default_scope_id="global-java", mode="atomic")
@@ -123,7 +123,7 @@ def test_index_lessons_from_markdown_create_and_update_record_actor_id(tmp_kb):
     assert len(created) == 1
     assert created[0][0] == me
 
-    md_path.write_text(_LESSON_BLOCK.replace("Something happened.", "Something else happened."))
+    md_path.write_text(_LESSON_BLOCK.replace("Something happened.", "Something else happened."), encoding="utf-8")
     index_lessons_from_markdown(filepath, default_scope_id="global-java", mode="atomic")
 
     # _update_indexed_lesson records change_type='DEPRECATED' for a re-index
@@ -142,7 +142,7 @@ def test_index_lessons_from_markdown_create_and_update_record_actor_id(tmp_kb):
 def test_approve_create_rule_proposal_records_actor_id(tmp_kb):
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     conn.execute(
         """
@@ -163,7 +163,7 @@ def test_approve_create_rule_proposal_records_actor_id(tmp_kb):
 def test_approve_create_lesson_proposal_records_actor_id(tmp_kb):
     kb_path, conn = tmp_kb
     dest_file = kb_path / "lessons" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     conn.execute(
         """
@@ -264,7 +264,7 @@ def test_approval_actor_id_is_independent_of_proposal_actor_id(tmp_kb, monkeypat
     happening to be the same OS user in local mode."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     monkeypatch.setattr(
         "meridian.tools.extraction.resolve_actor", lambda: "proposer-alice"
@@ -314,7 +314,7 @@ def test_propose_approve_flow_identical_with_mode_unset_vs_local(tmp_path, monke
         conn = get_connection(db_path)
 
         dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-        dest_file.write_text("")
+        dest_file.write_text("", encoding="utf-8")
 
         proposal_id = create_pending_proposal(conn, "rule", "A new rule.", "global-java")
         result = approve_proposal(proposal_id)
@@ -341,7 +341,7 @@ def test_additive_output_get_rule_context(tmp_kb):
     other field/value unchanged."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
     conn.execute(
         """
         INSERT INTO pending_proposals (id, type, scope_id, proposed_text, status)
@@ -362,7 +362,7 @@ def test_additive_output_get_rule_context(tmp_kb):
 def test_additive_output_get_rule_audit_log(tmp_kb):
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
     conn.execute(
         """
         INSERT INTO pending_proposals (id, type, scope_id, proposed_text, status)

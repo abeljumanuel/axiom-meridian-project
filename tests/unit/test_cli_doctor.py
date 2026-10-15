@@ -18,9 +18,9 @@ def _venv(root, *, home=None):
     bindir = root / "bin"
     bindir.mkdir()
     exe = bindir / "meridian"
-    exe.write_text("#!/bin/sh\n")
+    exe.write_text("#!/bin/sh\n", encoding="utf-8")
     exe.chmod(0o755)
-    (root / "pyvenv.cfg").write_text(f"home = {home or sys.prefix}\n")
+    (root / "pyvenv.cfg").write_text(f"home = {home or sys.prefix}\n", encoding="utf-8")
     return exe, site
 
 
@@ -83,18 +83,21 @@ def test_cloud_sync_duplicates_fail(tmp_path):
     root = tmp_path / "venv"
     _, site = _venv(root)
     (site / "meridian").mkdir()
-    (site / "meridian" / "server 2.py").write_text("")
+    (site / "meridian" / "server 2.py").write_text("", encoding="utf-8")
     checks = doctor.check_sync_corruption(root, "linux")
     assert _statuses(checks) == [doctor.FAIL]
     assert "server 2.py" in checks[0].detail
 
 
-@pytest.mark.skipif(not hasattr(stat, "UF_HIDDEN"), reason="BSD file flags (macOS) only")
+@pytest.mark.skipif(
+    not (hasattr(os, "chflags") and hasattr(stat, "UF_HIDDEN")),
+    reason="BSD file flags (macOS) only",
+)
 def test_hidden_pth_fails(tmp_path):
     root = tmp_path / "venv"
     _, site = _venv(root)
     pth = site / "_editable_impl_axiom_meridian.pth"
-    pth.write_text("/src\n")
+    pth.write_text("/src\n", encoding="utf-8")
     os.chflags(pth, stat.UF_HIDDEN)
     checks = doctor.check_sync_corruption(root, "darwin")
     assert _statuses(checks) == [doctor.FAIL]
@@ -104,7 +107,7 @@ def test_hidden_pth_fails(tmp_path):
 def test_clean_venv_has_no_sync_findings(tmp_path):
     root = tmp_path / "venv"
     _, site = _venv(root)
-    (site / "_editable_impl_axiom_meridian.pth").write_text("/src\n")
+    (site / "_editable_impl_axiom_meridian.pth").write_text("/src\n", encoding="utf-8")
     assert doctor.check_sync_corruption(root, "linux") == []
 
 

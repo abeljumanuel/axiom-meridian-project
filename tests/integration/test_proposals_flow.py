@@ -99,7 +99,7 @@ def test_reject_proposal(tmp_kb):
 def test_approve_with_attributes(tmp_kb):
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     prop_id = "prop-0001"
     conn.execute(
@@ -151,7 +151,7 @@ def test_approve_proposal_keeps_indexed_files_and_tags_in_sync(tmp_kb):
     matches the real .md on disk, and rule_tags mirrors the metadata tags."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     prop_id = "prop-0001"
     conn.execute(
@@ -194,7 +194,7 @@ def test_promote_rule_refreshes_indexed_files_for_affected_file(tmp_kb):
     indexed_files for the affected .md reflects the deprecation edit."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "projects" / "example.md"
-    dest_file.write_text("## RN-EXAMPLE-001\nSome rule text.\n")
+    dest_file.write_text("## RN-EXAMPLE-001\nSome rule text.\n", encoding="utf-8")
 
     conn.execute(
         """
@@ -413,7 +413,7 @@ def test_approve_create_proposal_survives_embedding_failure(tmp_kb, monkeypatch)
     generate_embeddings pass to pick up."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     from meridian.rag import vector_store
 
@@ -446,13 +446,13 @@ def test_approve_update_proposal_survives_embedding_failure(tmp_kb, monkeypatch)
     """Same as above, for the UPDATE path."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("## RN-JAVA-001\n**Scope:** global-java\n**Regla:** old text.\n")
+    dest_file.write_text("## RN-JAVA-001\n**Scope:** global-java\n**Regla:** old text.\n", encoding="utf-8")
     conn.execute(
         "INSERT INTO rules (id, scope_id, code, text, category, severity, "
         "file_path, file_offset, byte_length) VALUES "
         "('RN-JAVA-001', 'global-java', 'RN-JAVA-001', 'old text.', "
         "'general', 'medium', ?, 0, ?)",
-        (str(dest_file), len(dest_file.read_text().encode())),
+        (str(dest_file), len(dest_file.read_text(encoding="utf-8").encode())),
     )
     conn.commit()
 

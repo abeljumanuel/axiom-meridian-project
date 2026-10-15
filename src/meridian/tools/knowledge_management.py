@@ -1790,7 +1790,7 @@ def create_project(
 
     md_path = project_dir_kb / f"{project_id}.md"
     if not md_path.exists():
-        md_path.write_text(f"# {name or project_id}\n\n")
+        md_path.write_text(f"# {name or project_id}\n\n", encoding="utf-8")
 
     conn.execute(
         "INSERT INTO scopes (id, type, name, parent_id) VALUES (?, ?, ?, ?)",

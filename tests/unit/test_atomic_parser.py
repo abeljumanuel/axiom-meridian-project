@@ -54,7 +54,7 @@ def test_positional_read():
 
 def test_empty_file(tmp_path):
     empty_file = tmp_path / "empty.md"
-    empty_file.write_text("")
+    empty_file.write_text("", encoding="utf-8")
     blocks, warnings = parse(str(empty_file))
     assert blocks == []
     assert warnings == []
@@ -63,7 +63,7 @@ def test_empty_file(tmp_path):
 def test_missing_scope_field(tmp_path):
     content = "## RN-TEST-001\n**Categoría:** test\n**Severidad:** low\n"
     missing_file = tmp_path / "missing.md"
-    missing_file.write_text(content)
+    missing_file.write_text(content, encoding="utf-8")
     blocks, warnings = parse(str(missing_file))
     assert len(blocks) == 1
     assert blocks[0].scope is None
@@ -87,7 +87,7 @@ def test_header_regex_accepts_digits_in_tech_segment(tmp_path):
         "**Regla:** text\n"
     )
     f = tmp_path / "digits.md"
-    f.write_text(content)
+    f.write_text(content, encoding="utf-8")
     blocks, warnings = parse(str(f))
     assert len(blocks) == 1
     assert blocks[0].code == "RN-JAVA17-001"
@@ -111,7 +111,7 @@ def test_header_regex_accepts_plain_codes(tmp_path):
         "**Regla:** text\n"
     )
     f = tmp_path / "plain.md"
-    f.write_text(content)
+    f.write_text(content, encoding="utf-8")
     blocks, warnings = parse(str(f))
     assert len(blocks) == 1
     assert blocks[0].code == "RN-086"
@@ -123,7 +123,7 @@ def test_no_blocks_found_warns_on_nonempty_file(tmp_path):
     atomic block headers must surface an explicit warning naming the file
     and expected header format, instead of silently returning indexed: 0."""
     f = tmp_path / "malformed.md"
-    f.write_text("### Old-style legacy header\nSome text.\n")
+    f.write_text("### Old-style legacy header\nSome text.\n", encoding="utf-8")
     blocks, warnings = parse(str(f))
     assert blocks == []
     assert len(warnings) == 1
@@ -152,7 +152,7 @@ def test_lesson_block_does_not_swallow_later_fields(tmp_path):
         "**Originó regla:** RN-GLOBAL-099\n"
     )
     f = tmp_path / "lesson.md"
-    f.write_text(content)
+    f.write_text(content, encoding="utf-8")
     blocks, warnings = parse(str(f))
     assert len(blocks) == 1
     assert blocks[0].code == "LL-TEST-001"

@@ -33,7 +33,7 @@ def tmp_kb(tmp_path, monkeypatch):
 
 def _seed_rule(conn, code: str, scope_id: str, file_path, text: str = "Some text.") -> None:
     block = f"## {code}\n**Regla:** {text}\n"
-    file_path.write_text(block)
+    file_path.write_text(block, encoding="utf-8")
     conn.execute(
         """
         INSERT INTO rules

@@ -11,7 +11,7 @@ def test_parse_lessons_format(tmp_path):
 - **Resolution**: Added explicit timeouts.
 """
     filepath = tmp_path / "lessons.md"
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
     blocks = parse(str(filepath), doc_type="lessons")
     assert len(blocks) == 1
     assert isinstance(blocks[0], LegacyBlock)
@@ -31,7 +31,7 @@ def test_skip_verification_sections(tmp_path):
 - **Problem**: real problem
 """
     filepath = tmp_path / "lessons.md"
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
     blocks = parse(str(filepath), doc_type="lessons")
     assert len(blocks) == 1
     assert blocks[0].title == "Issue 1.1: Real Issue"
@@ -47,7 +47,7 @@ def test_skip_skill_suggestions(tmp_path):
 - **Problem**: real problem
 """
     filepath = tmp_path / "lessons.md"
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
     blocks = parse(str(filepath), doc_type="lessons")
     assert len(blocks) == 1
     assert blocks[0].title == "Issue 1.1: Real Issue"
@@ -66,7 +66,7 @@ def test_multiple_blocks(tmp_path):
 - **Problem**: p3
 """
     filepath = tmp_path / "lessons.md"
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
     blocks = parse(str(filepath), doc_type="lessons")
     assert len(blocks) == 3
     for i, b in enumerate(blocks):
@@ -85,7 +85,7 @@ def test_positional_read_legacy(tmp_path):
 - **Resolution**: Added explicit timeouts.
 """
     filepath = tmp_path / "lessons.md"
-    filepath.write_text(content)
+    filepath.write_text(content, encoding="utf-8")
     blocks = parse(str(filepath), doc_type="lessons")
     assert len(blocks) == 1
 

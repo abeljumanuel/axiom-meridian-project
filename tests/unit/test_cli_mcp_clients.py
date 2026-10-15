@@ -70,7 +70,7 @@ def _fake_bin(root: Path, platform: str = "linux") -> Path:
     bindir = root / ("Scripts" if platform == "win32" else "bin")
     bindir.mkdir(parents=True)
     exe = bindir / ("meridian.exe" if platform == "win32" else "meridian")
-    exe.write_text("")
+    exe.write_text("", encoding="utf-8")
     return exe
 
 
@@ -180,7 +180,7 @@ def test_config_shape_opencode():
 def test_configure_writes_new_file(tmp_path, key, flavor):
     client = mc.Client(key, key, flavor, tmp_path / "cfg" / "mcp.json")
     assert setup_cli.configure_client(client, _CMD, _ENV)
-    doc = json.loads(client.config_path.read_text())
+    doc = json.loads(client.config_path.read_text(encoding="utf-8"))
     assert doc == mc.new_config(flavor, _CMD, _ENV)
     assert mc.configured_command(client, doc) == _CMD
 
@@ -188,37 +188,37 @@ def test_configure_writes_new_file(tmp_path, key, flavor):
 def test_configure_merges_into_existing_file_with_backup(tmp_path):
     path = tmp_path / "mcp.json"
     original = {"mcpServers": {"other": {"command": "x"}}, "theme": "dark"}
-    path.write_text(json.dumps(original))
+    path.write_text(json.dumps(original), encoding="utf-8")
     client = mc.Client("cursor", "Cursor", "mcpServers", path)
 
     assert setup_cli.configure_client(client, _CMD, _ENV)
 
-    doc = json.loads(path.read_text())
+    doc = json.loads(path.read_text(encoding="utf-8"))
     assert doc["theme"] == "dark"
     assert doc["mcpServers"]["other"] == {"command": "x"}
     assert doc["mcpServers"]["meridian"]["command"] == _CMD[0]
-    assert json.loads((tmp_path / "mcp.json.meridian-bak").read_text()) == original
+    assert json.loads((tmp_path / "mcp.json.meridian-bak").read_text(encoding="utf-8")) == original
 
 
 def test_configure_never_overwrites_a_different_install(tmp_path, capsys):
     path = tmp_path / "mcp.json"
     existing = mc.new_config("mcpServers", ["/old/venv/bin/meridian", "mcp"], _ENV)
-    path.write_text(json.dumps(existing))
+    path.write_text(json.dumps(existing), encoding="utf-8")
     client = mc.Client("kimi-cli", "Kimi CLI", "mcpServers", path)
 
     assert not setup_cli.configure_client(client, _CMD, _ENV)
 
-    assert json.loads(path.read_text()) == existing
+    assert json.loads(path.read_text(encoding="utf-8")) == existing
     assert "different Meridian install" in capsys.readouterr().out
 
 
 def test_configure_leaves_jsonc_untouched(tmp_path, capsys):
     path = tmp_path / "mcp.json"
-    path.write_text('{\n  // my servers\n  "servers": {}\n}\n')
+    path.write_text('{\n  // my servers\n  "servers": {}\n}\n', encoding="utf-8")
     client = mc.Client("vscode", "VSCode", "vscode", path)
 
     assert not setup_cli.configure_client(client, _CMD, _ENV)
-    assert "// my servers" in path.read_text()
+    assert "// my servers" in path.read_text(encoding="utf-8")
     assert "Add manually" in capsys.readouterr().out
 
 

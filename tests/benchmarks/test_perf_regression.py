@@ -68,7 +68,7 @@ def _build_synthetic_rules_md(n: int) -> str:
 
 def _timed_query_rules_full(kb_path: Path, n_rules: int) -> float:
     md_path = kb_path / "knowledge-base" / "global" / "bench.md"
-    md_path.write_text(_build_synthetic_rules_md(n_rules))
+    md_path.write_text(_build_synthetic_rules_md(n_rules), encoding="utf-8")
     index_rules_from_markdown(str(md_path), default_scope_id="global", mode="atomic")
 
     start = time.perf_counter()

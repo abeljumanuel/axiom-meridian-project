@@ -133,7 +133,7 @@ def test_approve_create_proposal_embeds_new_rule(tmp_kb):
     previously embedding_id stayed NULL until someone ran it manually."""
     kb_path, conn = tmp_kb
     dest_file = kb_path / "knowledge-base" / "global" / "java.md"
-    dest_file.write_text("")
+    dest_file.write_text("", encoding="utf-8")
 
     conn.execute(
         """
@@ -344,7 +344,7 @@ def test_approve_deprecate_proposal_lesson_full_flow(tmp_kb):
     lesson_block = (
         "## LL-JAVA-001\n**Qué pasó:** A deploy silently failed.\n"
     )
-    lessons_md.write_text(lesson_block)
+    lessons_md.write_text(lesson_block, encoding="utf-8")
     byte_length = len(lesson_block.encode("utf-8"))
 
     conn.execute(

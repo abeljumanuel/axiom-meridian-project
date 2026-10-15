@@ -46,7 +46,7 @@ def test_index_rules_atomic_file(tmp_kb, monkeypatch, capsys):
         "**Aplica a:** *\n"
         "**Tags:** cli-test\n"
         "**Fuente:** unit-test\n"
-        "**Regla:** Use descriptive names.\n"
+        "**Regla:** Use descriptive names.\n", encoding="utf-8"
     )
 
     _run_cli(monkeypatch, ["index", "rules", str(rules_md), "--scope", "global"])
@@ -79,7 +79,7 @@ def test_index_lessons_atomic_file(tmp_kb, monkeypatch, capsys):
         "**Impacto:** none\n"
         "**Causa raíz:** testing\n"
         "**Resolución:** n/a\n"
-        "**Originó regla:** \n"
+        "**Originó regla:** \n", encoding="utf-8"
     )
 
     _run_cli(monkeypatch, ["index", "lessons", str(lessons_md), "--scope", "global"])
