@@ -15,6 +15,7 @@ import time
 
 from meridian.config import get_db_path, get_knowledge_base_path
 from meridian.db.connection import get_connection
+from meridian.parsers.atomic_parser import BLOCK_HEADER_LINE_RE, parse_block_text
 from meridian.parsers.atomic_parser import parse as atomic_parse
 from meridian.parsers.legacy_parser import parse as legacy_parse
 from meridian.rag import embedder, vector_store
@@ -137,7 +138,7 @@ def _append_atomic_block(
     is written) so ``indexed_files`` never drifts from what's on disk.
     Returns ``(file_offset, byte_length)`` of the newly written block.
     """
-    current_bytes = dest_path.read_bytes()
+    current_bytes = dest_path.read_bytes() if dest_path.exists() else b""
     block_bytes = block_text.encode("utf-8")
 
     if len(current_bytes) > 0:
@@ -597,6 +598,14 @@ def approve_proposal(proposal_id: str) -> dict:
             json.loads(proposal["metadata"]) if proposal.get("metadata") else {}
         )
 
+        if proposal["type"] != "deprecate" and BLOCK_HEADER_LINE_RE.search(proposed_text):
+            raise ValueError(
+                f"Proposal {proposal_id}'s text contains an atomic block header "
+                "('## RN-…' / '## LL-…'); approving it would nest one block inside "
+                "another. Use edit_proposal to leave only the body in the text and "
+                "move the other fields to metadata, then approve again."
+            )
+
         if proposal["type"] == "update":
             return _approve_update_proposal(conn, proposal_id, proposal, proposed_text, metadata)
         if proposal["type"] == "deprecate":
@@ -790,6 +799,14 @@ def _approve_update_proposal(
     old_length = target["byte_length"]
     if not dest_path.exists():
         raise FileNotFoundError(f"Destination file does not exist: {dest_path}")
+
+    # Fields the proposal doesn't set keep the target's current values, read
+    # from its block in the .md file (the source of truth — it also carries
+    # **Fuente:**, which has no column), so the rewritten block and the row
+    # agree.
+    old_block = dest_path.read_bytes()[old_offset : old_offset + old_length].decode("utf-8")
+    kind = "rule" if target_table == "rules" else "lesson"
+    metadata = {**parse_block_text(old_block, kind).metadata, **metadata}
 
     block_text = block_builder(target_id, scope_id, proposed_text, metadata)
 
@@ -1077,7 +1094,12 @@ def _approve_create_proposal(
 
     dest_path = _scope_to_file_path(scope_id, doc_type=prop_type)
     if not dest_path.exists():
-        raise FileNotFoundError(f"Destination file does not exist: {dest_path}")
+        # First block of this scope: create its file (and directory) instead
+        # of failing. The scope was validated when the proposal was created;
+        # re-check it in case it was removed since.
+        if conn.execute("SELECT 1 FROM scopes WHERE id = ?", (scope_id,)).fetchone() is None:
+            raise ValueError(f"Scope '{scope_id}' does not exist")
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
 
     file_offset, byte_length = _append_atomic_block(conn, dest_path, block_text)
 

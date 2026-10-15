@@ -915,7 +915,13 @@ def extract_lessons_from_transcript(
 def create_pending_proposal(
     type: Annotated[str, Field(description="Proposal type: 'rule', 'lesson', or 'update'.")],
     proposed_text: Annotated[
-        str, Field(description="The proposed rule/lesson text (private tags are stripped before storage).")
+        str,
+        Field(
+            description="The body only: the rule text (goes under **Regla:**) or what "
+            "happened (goes under **Qué pasó:**). Put the other block fields in "
+            "`metadata`. A full rendered atomic block is also accepted and split into "
+            "body + metadata. Private tags are stripped before storage."
+        ),
     ],
     suggested_scope_id: Annotated[
         str,
@@ -937,12 +943,24 @@ def create_pending_proposal(
     ] = None,
     source_type: Annotated[str | None, Field(description="Provenance type, e.g. 'transcript' or 'manual'.")] = None,
     source_ref: Annotated[str | None, Field(description="Provenance reference, e.g. a meeting id or PR link.")] = None,
+    metadata: Annotated[
+        str | None,
+        Field(
+            description="JSON object with the block fields other than the body. Rule keys: "
+            "category, severity (low|medium|high|critical), applies_to, tags (list or "
+            "comma-separated), source. Lesson keys: project, date_occurred, severity, "
+            "area_affected, tags, impact, root_cause, resolution, originated_rule_id. "
+            "For type='update', omitted keys keep the target's current values."
+        ),
+    ] = None,
 ) -> str:
     """Validate and persist a pending proposal of type 'rule', 'lesson', or
-    'update' (private tags stripped from proposed_text). For type='update',
-    target_id must reference an existing RN-*/LL-* id and the proposal
-    inherits that target's scope_id. Does not write to rules/lessons or any
-    .md file — approve_proposal does that after human review.
+    'update' (private tags stripped from proposed_text and metadata). The body
+    goes in proposed_text and the other block fields in metadata; a full
+    rendered atomic block in proposed_text is split into the two. For
+    type='update', target_id must reference an existing RN-*/LL-* id and the
+    proposal inherits that target's scope_id. Does not write to rules/lessons
+    or any .md file — approve_proposal does that after human review.
 
     Access level: analyze.
     Returns: the new proposal's id, as a plain string.
@@ -957,11 +975,15 @@ def create_pending_proposal(
         "suggested_attributes": suggested_attributes,
         "source_type": source_type,
         "source_ref": source_ref,
+        "metadata": metadata,
     }
     project_id = _project_id_from_scope(suggested_scope_id)
 
     def _impl() -> str:
         attrs = json.loads(suggested_attributes) if suggested_attributes else None
+        meta_dict = json.loads(metadata) if metadata else None
+        if meta_dict is not None and not isinstance(meta_dict, dict):
+            raise ValueError("metadata must be a JSON object.")
         return extraction.create_pending_proposal(
             _get_conn(),
             type,
@@ -972,6 +994,7 @@ def create_pending_proposal(
             suggested_attributes=attrs,
             source_type=source_type,
             source_ref=source_ref,
+            metadata=meta_dict,
         )
 
     return _security_pattern(tool_name, params, project_id, _impl)

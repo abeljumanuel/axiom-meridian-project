@@ -162,3 +162,68 @@ def test_lesson_block_does_not_swallow_later_fields(tmp_path):
     # Aplica a, Fuente) are expected here and unrelated to this fix — the
     # parser doesn't distinguish rule vs. lesson blocks when checking those.
     assert blocks[0].text == "The deploy failed silently."
+
+
+def test_parse_block_text_rule_with_placeholder_header():
+    from meridian.parsers.atomic_parser import parse_block_text
+
+    fields = parse_block_text(
+        "## RN-XXX-NNN\n**Scope:** global-java\n**Categoría:** security\n"
+        "**Severidad:** high\n**Aplica a:** **/*.java\n**Tags:** auth, jwt\n"
+        "**Fuente:** PR #12\n**Regla:** Validate every token.",
+        "rule",
+    )
+    assert fields.header_kind == "rule"
+    assert fields.scope == "global-java"
+    assert fields.body == "Validate every token."
+    assert fields.metadata == {
+        "category": "security",
+        "severity": "high",
+        "applies_to": "**/*.java",
+        "tags": ["auth", "jwt"],
+        "source": "PR #12",
+    }
+
+
+def test_parse_block_text_keeps_multiline_body_and_drops_empty_fields():
+    from meridian.parsers.atomic_parser import parse_block_text
+
+    fields = parse_block_text(
+        "## RN-JAVA-001\n**Categoría:** \n**Tags:** \n"
+        "**Regla:** First line.\n- detail one\n**Note:** not a known label",
+        "rule",
+    )
+    assert fields.body == "First line.\n- detail one\n**Note:** not a known label"
+    assert fields.metadata == {"tags": []}
+    assert fields.scope is None
+
+
+def test_parse_block_text_lesson():
+    from meridian.parsers.atomic_parser import parse_block_text
+
+    fields = parse_block_text(
+        "## LL-XXX-NNN\n**Scope:** project-demo\n**Proyecto:** demo\n**Fecha:** 2026-10-01\n"
+        "**Severidad del impacto:** high\n**Área afectada:** billing\n**Tags:** cache\n"
+        "**Qué pasó:** Stale prices.\n**Impacto:** Wrong invoices.\n**Causa raíz:** TTL.\n"
+        "**Resolución:** Shorter TTL.\n**Originó regla:** ",
+        "lesson",
+    )
+    assert fields.header_kind == "lesson"
+    assert fields.body == "Stale prices."
+    assert fields.metadata == {
+        "project": "demo",
+        "date_occurred": "2026-10-01",
+        "severity": "high",
+        "area_affected": "billing",
+        "tags": ["cache"],
+        "impact": "Wrong invoices.",
+        "root_cause": "TTL.",
+        "resolution": "Shorter TTL.",
+    }
+
+
+def test_parse_block_text_without_body_label():
+    from meridian.parsers.atomic_parser import parse_block_text
+
+    fields = parse_block_text("## RN-XXX-NNN\n**Scope:** global\n", "rule")
+    assert fields.body is None

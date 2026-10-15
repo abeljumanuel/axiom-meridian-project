@@ -150,6 +150,11 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **Explicitly deferred because:** it sits outside the core MCP/knowledge-governance scope of the capstone (agent-facing tools, scope resolution, governed writes, RAG) and would add a second stack (HTTP API + frontend + its own auth/testing surface) without changing what an agent can do. Treated as an optional companion, evaluated only if time remains after the core backlog above.
 - **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
 
+### TICKET-020 — Proposal metadata and first block of a scope
+- **Type:** Bug fix | **Priority:** Must | **Status:** In progress
+- **Description:** The documented proposal flow (template usage: rendered block as `proposed_text`) produced a nested, mis-filed block on approval, because `approve_proposal` builds the block from the body plus `metadata`, which the MCP tool couldn't set. Approving the first rule or lesson of a scope with no `.md` file failed, and a text-only `update` reset the target's other fields. Found while registering `RN-AXIOM-001`.
+- **OpenSpec change:** [`fix-proposal-metadata-and-scope-file`](../openspec/changes/fix-proposal-metadata-and-scope-file/)
+
 ## Related Documents
 
 - [Project Charter](01-project-charter.md)

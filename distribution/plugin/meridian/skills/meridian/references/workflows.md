@@ -33,19 +33,23 @@
 
 ## Capturing a lesson after an incident
 
-1. `get_lesson_template()` for the block format.
+1. `get_lesson_template()` for the fields and their meaning.
 2. Draft the lesson (what happened, impact, root cause, resolution) and pick
    the narrowest scope that fits.
-3. `create_pending_proposal(type="lesson", proposed_text=<block>,
-   suggested_scope_id="project-billing-service")`.
+3. `create_pending_proposal(type="lesson", proposed_text=<what happened>,
+   metadata='{"severity": "high", "impact": ..., "root_cause": ...,
+   "resolution": ..., "tags": [...]}',
+   suggested_scope_id="project-billing-service")`. Send only the body as
+   `proposed_text`; the block is built from it and `metadata` on approval.
 4. Tell the user the proposal id and that it awaits review in
    `list_pending_proposals`.
 
 ## Changing or retiring a rule
 
 - Wording or content changes: `create_pending_proposal(type="update",
-  target_id="RN-JAVA-012", proposed_text=<new block>,
-  suggested_scope_id="global-java")`.
+  target_id="RN-JAVA-012", proposed_text=<new rule text>,
+  suggested_scope_id="global-java")`. Add `metadata` only for the fields that
+  change (e.g. `'{"severity": "critical"}'`); the others keep their values.
 - No longer valid: `deprecate_rule(rule_id="RN-JAVA-012", reason=...,
   superseded_by="RN-JAVA-020")` (the replacement is optional).
 

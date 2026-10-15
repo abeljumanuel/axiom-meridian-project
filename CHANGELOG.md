@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `create_pending_proposal` takes an optional `metadata` JSON object with the
+  block fields other than the body (rules: category, severity, applies-to,
+  tags, source; lessons: project, date, severity, affected area, tags,
+  impact, root cause, resolution, originating rule). Unknown keys and invalid
+  severities are rejected.
+
+### Fixed
+
+- Following the template instructions (the whole rendered block as
+  `proposed_text`) no longer produces a broken block, with a second header
+  nested inside the rule text and the fields reset to `general` / `medium`.
+  A rendered block is now split into body and fields when the proposal is
+  created, and `approve_proposal` refuses any proposal whose text still
+  contains a block header. The template, transcription and skill
+  instructions now describe the body + `metadata` contract.
+- Approving the first rule or lesson of a scope no longer fails with
+  `Destination file does not exist`; the scope's file is created. This
+  includes the lessons file of projects created with `create_project`.
+- A text-only `update` proposal no longer resets the target's category,
+  severity, applies-to and source, or clears its tags; fields the proposal
+  doesn't set keep their current values in the file and the index.
+
 ## [0.1.0] - 2026-10-15
 
 ### Added

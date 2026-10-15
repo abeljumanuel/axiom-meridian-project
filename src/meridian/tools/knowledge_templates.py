@@ -100,10 +100,15 @@ _RULE_FIELDS: list[dict[str, Any]] = [
 ]
 
 _RULE_USAGE: str = (
-    "Fill every required field in the template above, then call "
-    "index_rules_from_markdown to persist it directly, or call "
-    "create_pending_proposal with type='rule' and proposed_text set to the "
-    "rendered markdown to queue it for human review."
+    "The template above is the Markdown file format: a block written into a "
+    "knowledge .md file is persisted with index_rules_from_markdown. To queue a "
+    "rule for human review instead, call create_pending_proposal with "
+    "type='rule', proposed_text set to the rule text only (the **Regla:** value) "
+    "and the other fields in metadata — the block is built on approval. "
+    "Example: create_pending_proposal(type='rule', suggested_scope_id='global-java', "
+    "proposed_text='Close JDBC resources with try-with-resources.', "
+    "metadata='{\"category\": \"quality\", \"severity\": \"high\", "
+    "\"applies_to\": \"**/*.java\", \"tags\": [\"jdbc\"], \"source\": \"manual\"}')."
 )
 
 # ---------------------------------------------------------------------------
@@ -169,10 +174,16 @@ _LESSON_FIELDS: list[dict[str, Any]] = [
 ]
 
 _LESSON_USAGE: str = (
-    "Fill the relevant fields in the template above, then call "
-    "index_lessons_from_markdown to persist it directly, or call "
-    "create_pending_proposal with type='lesson' and proposed_text set to the "
-    "rendered markdown to queue it for human review."
+    "The template above is the Markdown file format: a block written into a "
+    "lessons .md file is persisted with index_lessons_from_markdown. To queue a "
+    "lesson for human review instead, call create_pending_proposal with "
+    "type='lesson', proposed_text set to what happened only (the **Qué pasó:** "
+    "value) and the other fields in metadata — the block is built on approval. "
+    "Example: create_pending_proposal(type='lesson', suggested_scope_id='project-x', "
+    "proposed_text='The cache served stale prices for 2 hours.', "
+    "metadata='{\"severity\": \"high\", \"area_affected\": \"billing\", "
+    "\"impact\": \"Wrong invoices.\", \"root_cause\": \"TTL too long.\", "
+    "\"resolution\": \"Shorter TTL.\", \"tags\": [\"cache\"]}')."
 )
 
 # ---------------------------------------------------------------------------
@@ -206,8 +217,9 @@ _TRANSCRIPTION_USAGE: str = (
     "and the canonical atomic template. "
     "(2) Analyze the transcript and identify rule and lesson candidates. "
     "(3) For each candidate, call create_pending_proposal with type='rule' or "
-    "type='lesson' and proposed_text formatted in the canonical atomic markdown "
-    "(use get_rule_template / get_lesson_template for the format). "
+    "type='lesson', proposed_text set to the body only (the rule text, or what "
+    "happened) and the other block fields in metadata (see the usage of "
+    "get_rule_template / get_lesson_template for the keys). "
     "Proposals are queued for human review and do NOT immediately persist a rule "
     "or lesson — a human must approve each proposal before it becomes active."
 )

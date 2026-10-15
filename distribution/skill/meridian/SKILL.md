@@ -68,9 +68,11 @@ same project.
 Meridian never lets an agent write rules directly. New or changed knowledge
 becomes a **pending proposal** that a human approves.
 
-1. Get the block format with `get_rule_template` / `get_lesson_template`
+1. Get the fields with `get_rule_template` / `get_lesson_template`
    (or `get_transcription_template` for a whole transcript).
-2. Draft the rule or lesson and submit it with `create_pending_proposal`.
+2. Draft the rule or lesson and submit it with `create_pending_proposal`:
+   the body (rule text, or what happened) as `proposed_text`, the other
+   fields as `metadata`.
 3. Tell the user it is pending and how to review it (`list_pending_proposals`).
 
 Approving (`approve_proposal`), editing, rejecting, and promoting proposals

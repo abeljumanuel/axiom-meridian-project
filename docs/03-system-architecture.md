@@ -114,7 +114,7 @@ sequenceDiagram
     participant MD as Markdown file
     participant DB as SQLite
 
-    Source->>Mgmt: create_pending_proposal(type, proposed_text, scope, ...)
+    Source->>Mgmt: create_pending_proposal(type, proposed_text=body, scope, metadata=block fields, ...)
     Mgmt->>DB: INSERT pending_proposals (status=pending)
     Human->>Mgmt: list_pending_proposals() / edit_proposal() (optional)
     Human->>Mgmt: approve_proposal(proposal_id)

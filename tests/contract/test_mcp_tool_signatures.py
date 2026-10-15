@@ -134,6 +134,7 @@ EXPECTED: dict[str, dict[str, Any]] = {
         "suggested_attributes": (str | None, None),
         "source_type": (str | None, None),
         "source_ref": (str | None, None),
+        "metadata": (str | None, None),
     },
     # Knowledge Templates
     "get_rule_template": {

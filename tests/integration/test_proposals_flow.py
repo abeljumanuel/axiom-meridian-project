@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
 from meridian.db.connection import get_connection, initialize_db
 from meridian.parsers.atomic_parser import parse as atomic_parse
 from meridian.tools import knowledge_management
+from meridian.tools.extraction import create_pending_proposal
 from meridian.tools.knowledge_management import (
     approve_proposal,
+    create_project,
     edit_proposal,
     promote_rule,
     reject_proposal,
@@ -530,3 +533,186 @@ def test_update_preserves_original_block_separator(tmp_kb, separator):
     blocks, warnings = atomic_parse(str(dest_file))
     assert warnings == []
     assert {b.code for b in blocks} == {"RN-JAVA-001", "RN-JAVA-002"}
+
+
+# --- fix-proposal-metadata-and-scope-file -----------------------------------
+
+
+def _rendered_rule_block(scope_id: str, regla: str) -> str:
+    """A rule as an agent following the old template usage would send it."""
+    return (
+        "## RN-XXX-NNN\n"
+        f"**Scope:** {scope_id}\n"
+        "**Categoría:** security\n"
+        "**Severidad:** high\n"
+        "**Aplica a:** src/**/*.py\n"
+        "**Tags:** auth, jwt\n"
+        "**Fuente:** PR #12\n"
+        f"**Regla:** {regla}"
+    )
+
+
+def test_rendered_block_proposal_approves_into_a_single_well_formed_block(tmp_kb):
+    kb_path, conn = tmp_kb
+    dest_file = kb_path / "knowledge-base" / "global" / "java.md"
+    dest_file.write_text("", encoding="utf-8")
+
+    prop_id = create_pending_proposal(
+        conn, "rule", _rendered_rule_block("global-java", "Validate every token."), "global-java"
+    )
+    result = approve_proposal(prop_id)
+
+    content = dest_file.read_text(encoding="utf-8")
+    assert content.count("## RN-") == 1
+    assert "**Regla:** Validate every token." in content
+    assert "**Categoría:** security" in content
+    assert "**Fuente:** PR #12" in content
+
+    row = conn.execute(
+        "SELECT text, category, severity, applies_to FROM rules WHERE id = ?",
+        (result["code"],),
+    ).fetchone()
+    assert row == ("Validate every token.", "security", "high", "src/**/*.py")
+    tags = {
+        r[0]
+        for r in conn.execute("SELECT tag FROM rule_tags WHERE rule_id = ?", (result["code"],))
+    }
+    assert tags == {"auth", "jwt"}
+
+
+def test_approve_first_rule_of_scope_without_file_creates_it(tmp_kb):
+    kb_path, conn = tmp_kb
+    dest_file = kb_path / "knowledge-base" / "global" / "python.md"
+    assert not dest_file.exists()
+
+    prop_id = create_pending_proposal(
+        conn, "rule", "Pin every dependency.", "global-python",
+        metadata={"category": "dependencies", "severity": "medium"},
+    )
+    result = approve_proposal(prop_id)
+
+    assert dest_file.exists()
+    assert result["file_offset"] == 0
+    assert dest_file.read_text(encoding="utf-8").startswith(f"## {result['code']}\n")
+    indexed = conn.execute(
+        "SELECT 1 FROM indexed_files WHERE file_path = ?", (str(dest_file),)
+    ).fetchone()
+    assert indexed is not None
+    blocks, _ = atomic_parse(str(dest_file))
+    assert [b.code for b in blocks] == [result["code"]]
+
+
+def test_approve_first_lesson_of_new_project_creates_lessons_file(tmp_kb):
+    kb_path, conn = tmp_kb
+    create_project(conn, "demo")
+    lessons_file = kb_path / "lessons" / "projects" / "demo.md"
+    assert not lessons_file.exists()
+
+    prop_id = create_pending_proposal(
+        conn, "lesson", "The cache served stale prices.", "project-demo",
+        metadata={"severity": "high", "impact": "Wrong invoices."},
+    )
+    result = approve_proposal(prop_id)
+
+    assert lessons_file.exists()
+    content = lessons_file.read_text(encoding="utf-8")
+    assert content.startswith(f"## {result['code']}\n")
+    assert "**Qué pasó:** The cache served stale prices." in content
+    assert conn.execute(
+        "SELECT what_happened FROM lessons WHERE id = ?", (result["code"],)
+    ).fetchone() == ("The cache served stale prices.",)
+
+
+def _seed_rule_with_fields(kb_path, conn) -> Path:
+    dest_file = kb_path / "knowledge-base" / "global" / "java.md"
+    dest_file.write_bytes(_rendered_rule_block("global-java", "Old text.").replace(
+        "RN-XXX-NNN", "RN-JAVA-001"
+    ).encode("utf-8") + b"\n")
+    block = atomic_parse(str(dest_file))[0][0]
+    conn.execute(
+        "INSERT INTO rules (id, scope_id, code, text, category, severity, applies_to, "
+        "tags, file_path, file_offset, byte_length) VALUES ('RN-JAVA-001', 'global-java', "
+        "'RN-JAVA-001', 'Old text.', 'security', 'high', 'src/**/*.py', "
+        "'[\"auth\", \"jwt\"]', ?, ?, ?)",
+        (str(dest_file), block.file_offset, block.byte_length),
+    )
+    for tag in ("auth", "jwt"):
+        conn.execute(
+            "INSERT INTO rule_tags (rule_id, tag) VALUES ('RN-JAVA-001', ?)", (tag,)
+        )
+    conn.commit()
+    return dest_file
+
+
+def test_text_only_update_keeps_the_target_fields(tmp_kb):
+    kb_path, conn = tmp_kb
+    dest_file = _seed_rule_with_fields(kb_path, conn)
+
+    prop_id = create_pending_proposal(
+        conn, "update", "New text.", "global-java", target_id="RN-JAVA-001"
+    )
+    approve_proposal(prop_id)
+
+    content = dest_file.read_text(encoding="utf-8")
+    assert "**Regla:** New text." in content
+    for line in (
+        "**Categoría:** security",
+        "**Severidad:** high",
+        "**Aplica a:** src/**/*.py",
+        "**Tags:** auth, jwt",
+        "**Fuente:** PR #12",
+    ):
+        assert line in content
+    row = conn.execute(
+        "SELECT category, severity, applies_to, tags FROM rules WHERE id = 'RN-JAVA-001'"
+    ).fetchone()
+    assert row[:3] == ("security", "high", "src/**/*.py")
+    assert json.loads(row[3]) == ["auth", "jwt"]
+    tags = {
+        r[0] for r in conn.execute("SELECT tag FROM rule_tags WHERE rule_id = 'RN-JAVA-001'")
+    }
+    assert tags == {"auth", "jwt"}
+
+
+def test_update_with_explicit_metadata_changes_only_those_fields(tmp_kb):
+    kb_path, conn = tmp_kb
+    dest_file = _seed_rule_with_fields(kb_path, conn)
+
+    prop_id = create_pending_proposal(
+        conn, "update", "New text.", "global-java", target_id="RN-JAVA-001",
+        metadata={"severity": "critical"},
+    )
+    approve_proposal(prop_id)
+
+    content = dest_file.read_text(encoding="utf-8")
+    assert "**Severidad:** critical" in content
+    assert "**Categoría:** security" in content
+    assert "**Tags:** auth, jwt" in content
+    row = conn.execute(
+        "SELECT category, severity FROM rules WHERE id = 'RN-JAVA-001'"
+    ).fetchone()
+    assert row == ("security", "critical")
+
+
+def test_approve_refuses_a_body_with_a_nested_block_header(tmp_kb):
+    """Proposals stored before the fix (or by any path that skips
+    create_pending_proposal's normalization) must not reach the file."""
+    kb_path, conn = tmp_kb
+    dest_file = kb_path / "knowledge-base" / "global" / "java.md"
+    dest_file.write_text("", encoding="utf-8")
+    conn.execute(
+        "INSERT INTO pending_proposals (id, type, scope_id, proposed_text, status) "
+        "VALUES ('prop-0001', 'rule', 'global-java', ?, 'pending')",
+        (_rendered_rule_block("global-java", "Validate every token."),),
+    )
+    conn.commit()
+
+    with pytest.raises(ValueError, match="edit_proposal"):
+        approve_proposal("prop-0001")
+
+    assert dest_file.read_text(encoding="utf-8") == ""
+    assert conn.execute("SELECT COUNT(*) FROM rules").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM rule_history").fetchone()[0] == 0
+    assert conn.execute(
+        "SELECT status FROM pending_proposals WHERE id = 'prop-0001'"
+    ).fetchone() == ("pending",)
