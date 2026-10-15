@@ -205,6 +205,10 @@ written, so their behavior — now provided by `meridian setup` instead of
   mismatch-warning guarantees, compared against `meridian setup`'s resolved
   command instead of `$BIN_DIR`.
 - `installer-venv-setup`: REMOVED — `install.sh` no longer creates a venv.
+  At archive time the main spec `openspec/specs/installer-venv-setup/` and
+  this change's `specs/installer-venv-setup/` delta were deleted by hand
+  instead of applied: the REMOVED delta would have left the spec with no
+  requirements, which OpenSpec rejects and aborts the archive on.
 
 ## Impact
 

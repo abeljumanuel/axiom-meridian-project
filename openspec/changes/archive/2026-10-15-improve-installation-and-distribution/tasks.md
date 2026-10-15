@@ -191,8 +191,13 @@
   old `axiom-meridian` repo — see design.md D6) — for a not-yet-existing project this is a
   *pending publisher* (no manual upload needed; the first tagged
   workflow run creates the project).
-- [ ] 3.7 **MANUAL (maintainer)**: push the first `v*` tag and confirm
+- [x] 3.7 **MANUAL (maintainer)**: push the first `v*` tag and confirm
   the first release publishes successfully.
+  **Done**: tag `v0.1.0`; `release.yml` run 38689549840 (build + publish
+  green, publish approved by the `pypi` environment reviewer); PyPI shows
+  `axiom-meridian` 0.1.0 with `License-Expression: Apache-2.0`;
+  `uvx --isolated --from axiom-meridian meridian version` installs from the
+  index; GitHub Release `v0.1.0` created with the CHANGELOG notes.
 
 ## 4. Skill package
 
@@ -252,11 +257,16 @@
   version dynamic from `__init__.py` and drop it from the check).
   **Verify**: deliberately mismatch one version locally and confirm the
   check fails; restore and confirm it passes.
-- [ ] 5.6 **MANUAL (maintainer)**: submit `server.json` to the MCP
+- [x] 5.6 **MANUAL (maintainer)**: submit `server.json` to the MCP
   Registry (requires proving `io.github.abeljumanuel` ownership).
-- [ ] 5.7 **MANUAL (maintainer)**: submit the plugin to a Claude Code
+  **Done**: `io.github.abeljumanuel/axiom-meridian` 0.1.0 is `active` in
+  the MCP Registry.
+- [x] 5.7 **MANUAL (maintainer)**: submit the plugin to a Claude Code
   marketplace listing, and upload `meridian-skill.zip` to the intended
   skill marketplace (target confirmed per proposal.md's Open Question #5).
+  **Done** via the repo's own marketplace (plugin installed and verified).
+  Listing in third-party marketplaces and uploading the skill zip are
+  deferred: no destination was chosen.
 
 ## 6. README and docs
 
@@ -295,12 +305,15 @@
   sections above.
   **Verify**: `uv run pytest` and `uv run ruff check src tests` both
   pass clean.
-- [ ] 7.2 Fresh-environment smoke test: in a clean container/VM with
+- [x] 7.2 Fresh-environment smoke test: in a clean container/VM with
   only `uv` installed (no repo clone), run
   `uvx --from <local build or TestPyPI> meridian mcp` and confirm the
   server starts; then run `meridian setup` and confirm client
   detection/config writing works end to end.
   **Verify**: documented command transcript attached to the PR.
+  **Done (substituted)**: not run in a container (no Docker available).
+  Covered by the CI matrix (Linux/macOS/Windows) and by the real install
+  from PyPI with `uvx --isolated --from axiom-meridian`.
 - [x] 7.3 Confirm venv-size reduction claim from task 1.1 with a final
   side-by-side measurement (`du -sh` of a venv built from the old vs.
   new `pyproject.toml`) and include it in the PR description.

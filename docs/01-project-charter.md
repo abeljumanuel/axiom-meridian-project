@@ -16,7 +16,7 @@
 | **Core framework** | [FastMCP](https://github.com/jlowin/fastmcp) (Model Context Protocol server implementation) |
 | **Persistence** | Markdown (source of truth) + SQLite (index/state layer) + ChromaDB (optional vector store for semantic search) |
 | **Interfaces** | MCP tools over stdio (default) or HTTP/SSE; companion CLI (`meridian`) |
-| **Distribution** | `uv`/`pip` editable install, one-line shell installer, MCP client auto-configuration (Claude Code, VSCode, OpenCode, Kimi CLI) |
+| **Distribution** | Published on PyPI as `axiom-meridian`: `uv tool install axiom-meridian` + `meridian setup` (MCP client auto-configuration for Claude Code, VSCode, Cursor, OpenCode, Kimi CLI) on Linux, macOS and Windows; optional `[rag]` extra for semantic search; Claude Code plugin via the repo's marketplace; listed in the MCP Registry as `io.github.abeljumanuel/axiom-meridian` |
 
 ## Repository Note
 

@@ -156,9 +156,11 @@
   `scripts/check_versions.py`, `scripts/check_skill_safety.py` and
   `scripts/package_skill.py` all pass; `uv build` + the 2.3 inspection
   still holds.
-- [ ] 8.4 **MANUAL (maintainer)**: commit (with a `Signed-off-by:` line,
+- [x] 8.4 **MANUAL (maintainer)**: commit (with a `Signed-off-by:` line,
   per the new DCO) and make sure this lands before
   `improve-installation-and-distribution`'s first `v*` tag, then cut the
   release.
   **Verify**: `git log -1` shows the commit; the first published PyPI
   release page shows "License: Apache-2.0".
+  **Done**: commit `f800112` signed off (DCO), merged via PR #3, published
+  in v0.1.0 (PR #4).
