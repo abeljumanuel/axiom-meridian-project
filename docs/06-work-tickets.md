@@ -94,6 +94,11 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 - **Description:** Move from MIT, which is declared but has no `LICENSE` file, to Apache-2.0 before the first public release: add `LICENSE` and `NOTICE` (attribution plus a trademark statement for "Axiom Meridian" / "Axiom JUMA"), PEP 639 package metadata, SPDX headers enforced by a test, a `CONTRIBUTING.md` with a DCO sign-off, and the dependency-compatibility review. It landed before TICKET-018's first PyPI release (commit `f800112`, PR #3), so 0.1.0 shipped under Apache-2.0. All preconditions are confirmed: sole authorship, the rights belong to the author (not the academic program), and the legal name.
 - **OpenSpec change:** [`change-license-to-apache-2`](../openspec/changes/archive/2026-10-15-change-license-to-apache-2/)
 
+### TICKET-020 — Proposal metadata and first block of a scope
+- **Type:** Bug fix | **Priority:** Must | **Status:** Done
+- **Description:** The documented proposal flow (template usage: rendered block as `proposed_text`) produced a nested, mis-filed block on approval, because `approve_proposal` builds the block from the body plus `metadata`, which the MCP tool couldn't set. Approving the first rule or lesson of a scope with no `.md` file failed, and a text-only `update` reset the target's other fields. Found while registering `RN-AXIOM-001`. Delivered in PR #6: `create_pending_proposal` takes `metadata` and normalizes a rendered block, `approve_proposal` rejects a nested header and creates a missing scope file, and `update` approvals inherit omitted fields.
+- **OpenSpec change:** [`fix-proposal-metadata-and-scope-file`](../openspec/changes/archive/2026-10-15-fix-proposal-metadata-and-scope-file/)
+
 ### Delivered without a ticket
 
 These OpenSpec changes were completed and archived with the 0.1.0 release but never had a ticket of their own; they're listed here so the record is complete.
@@ -149,11 +154,6 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **Description:** Build a small, standalone frontend for humans (not agents) to visually inspect Meridian's state without writing Python snippets — server health, scope hierarchy, rule/lesson counts, pending proposals, a rendered usage manual, and an embedding projector. Runs as a separate local process, reusing `knowledge_consumption` functions as a library; never speaks the MCP protocol or performs writes.
 - **Explicitly deferred because:** it sits outside the core MCP/knowledge-governance scope of the capstone (agent-facing tools, scope resolution, governed writes, RAG) and would add a second stack (HTTP API + frontend + its own auth/testing surface) without changing what an agent can do. Treated as an optional companion, evaluated only if time remains after the core backlog above.
 - **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
-
-### TICKET-020 — Proposal metadata and first block of a scope
-- **Type:** Bug fix | **Priority:** Must | **Status:** In progress
-- **Description:** The documented proposal flow (template usage: rendered block as `proposed_text`) produced a nested, mis-filed block on approval, because `approve_proposal` builds the block from the body plus `metadata`, which the MCP tool couldn't set. Approving the first rule or lesson of a scope with no `.md` file failed, and a text-only `update` reset the target's other fields. Found while registering `RN-AXIOM-001`.
-- **OpenSpec change:** [`fix-proposal-metadata-and-scope-file`](../openspec/changes/fix-proposal-metadata-and-scope-file/)
 
 ## Related Documents
 
