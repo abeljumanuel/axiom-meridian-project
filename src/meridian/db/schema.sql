@@ -1,0 +1,265 @@
+-- Scopes jerárquicos
+CREATE TABLE scopes (
+  id          TEXT PRIMARY KEY,
+  type        TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  parent_id   TEXT REFERENCES scopes(id)
+);
+
+-- Atributos dinámicos de scope (ADR-002)
+CREATE TABLE scope_attributes (
+  scope_id  TEXT NOT NULL REFERENCES scopes(id) ON DELETE CASCADE,
+  key       TEXT NOT NULL,
+  value     TEXT NOT NULL,
+  PRIMARY KEY (scope_id, key)
+);
+
+-- Reglas técnicas
+CREATE TABLE rules (
+  id                  TEXT PRIMARY KEY,
+  scope_id            TEXT NOT NULL REFERENCES scopes(id),
+  code                TEXT NOT NULL UNIQUE,
+  text                TEXT NOT NULL,
+  category            TEXT NOT NULL,
+  severity            TEXT NOT NULL,
+  applies_to          TEXT,
+  tags                TEXT,
+  status              TEXT DEFAULT 'active' CHECK (status IN ('active', 'deprecated')),
+  source_type         TEXT,
+  source_ref          TEXT,
+  file_path           TEXT,
+  file_offset         INTEGER,
+  byte_length         INTEGER,
+  originated_lesson_id TEXT REFERENCES lessons(id),
+  embedding_id        TEXT,
+  created_at          TEXT DEFAULT (datetime('now')),
+  updated_at          TEXT DEFAULT (datetime('now'))
+);
+
+-- Atributos dinámicos de reglas (ADR-002)
+CREATE TABLE rule_attributes (
+  rule_id   TEXT NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
+  key       TEXT NOT NULL,
+  value     TEXT NOT NULL,
+  PRIMARY KEY (rule_id, key)
+);
+
+-- Historial de cambios de reglas (append-only)
+CREATE TABLE rule_history (
+  id            TEXT PRIMARY KEY,
+  rule_id       TEXT NOT NULL REFERENCES rules(id),
+  change_type   TEXT NOT NULL,
+  previous_text TEXT,
+  new_text      TEXT,
+  reason        TEXT,
+  triggered_by  TEXT,
+  superseded_by TEXT REFERENCES rules(id),
+  actor_id      TEXT,
+  changed_at    TEXT DEFAULT (datetime('now'))
+);
+
+-- Historial de cambios de lecciones (append-only, simplificado)
+CREATE TABLE lesson_history (
+  id            TEXT PRIMARY KEY,
+  lesson_id     TEXT NOT NULL REFERENCES lessons(id),
+  change_type   TEXT NOT NULL,
+  previous_text TEXT,
+  new_text      TEXT,
+  reason        TEXT,
+  triggered_by  TEXT,
+  superseded_by TEXT REFERENCES lessons(id),
+  actor_id      TEXT,
+  changed_at    TEXT DEFAULT (datetime('now'))
+);
+
+-- Lecciones aprendidas
+CREATE TABLE lessons (
+  id                TEXT PRIMARY KEY,
+  scope_id          TEXT NOT NULL REFERENCES scopes(id),
+  code              TEXT NOT NULL UNIQUE,
+  project           TEXT,
+  date_occurred     TEXT,
+  severity          TEXT,
+  area_affected     TEXT,
+  what_happened     TEXT,
+  impact            TEXT,
+  root_cause        TEXT,
+  resolution        TEXT,
+  tags              TEXT,
+  originated_rule_id TEXT REFERENCES rules(id),
+  status            TEXT DEFAULT 'active' CHECK (status IN ('active', 'deprecated')),
+  file_path         TEXT,
+  file_offset       INTEGER,
+  byte_length       INTEGER,
+  embedding_id      TEXT,
+  source_type       TEXT,
+  source_ref        TEXT,
+  created_at        TEXT DEFAULT (datetime('now')),
+  updated_at        TEXT DEFAULT (datetime('now'))
+);
+
+-- Vínculos bidireccionales regla ↔ lección
+CREATE TABLE rule_lesson_links (
+  rule_id   TEXT NOT NULL REFERENCES rules(id),
+  lesson_id TEXT NOT NULL REFERENCES lessons(id),
+  link_type TEXT NOT NULL,
+  PRIMARY KEY (rule_id, lesson_id)
+);
+
+-- Cache de resolución de scopes
+CREATE TABLE project_scope_resolution (
+  project_id      TEXT PRIMARY KEY,
+  resolved_scopes TEXT NOT NULL,
+  updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+-- Registro de auditorías de PR
+CREATE TABLE pr_audits (
+  id               TEXT PRIMARY KEY,
+  project_id       TEXT NOT NULL,
+  pr_ref           TEXT,
+  diff_hash        TEXT,
+  rules_evaluated  INTEGER,
+  violations_found TEXT,
+  feedback_analyzed TEXT,
+  rule_version_snapshot TEXT,
+  audited_at       TEXT DEFAULT (datetime('now'))
+);
+
+-- Registro de checks de planning
+CREATE TABLE planning_checks (
+  id                  TEXT PRIMARY KEY,
+  project_id          TEXT NOT NULL,
+  feature_description TEXT,
+  conflicts_found     TEXT,
+  rules_involved      TEXT,
+  checked_at          TEXT DEFAULT (datetime('now'))
+);
+
+-- Propuestas pendientes de aprobación
+CREATE TABLE pending_proposals (
+  id                   TEXT PRIMARY KEY,
+  type                 TEXT NOT NULL,
+  scope_id             TEXT REFERENCES scopes(id),
+  target_id            TEXT,
+  proposed_text        TEXT NOT NULL,
+  metadata             TEXT,
+  suggested_attributes TEXT,
+  source_type          TEXT,
+  source_ref           TEXT,
+  status               TEXT DEFAULT 'pending',
+  reason               TEXT,
+  legacy_original      TEXT,
+  actor_id             TEXT,
+  created_at           TEXT DEFAULT (datetime('now'))
+);
+
+-- Registro de acceso a tools (audit trail de seguridad)
+CREATE TABLE access_log (
+  id          TEXT PRIMARY KEY,
+  timestamp   TEXT DEFAULT (datetime('now')),
+  tool_name   TEXT NOT NULL,
+  access_level TEXT NOT NULL,
+  project_id  TEXT,
+  parameters  TEXT,
+  result      TEXT NOT NULL,
+  transport   TEXT,
+  actor_id    TEXT
+);
+
+-- Contadores atómicos de IDs secuenciales (reemplaza MAX(id) LIKE 'prefix-%')
+CREATE TABLE id_counters (
+  name TEXT PRIMARY KEY,
+  next INTEGER NOT NULL
+);
+
+-- Fingerprint de archivos .md indexados (frescura por-archivo, Opción C)
+CREATE TABLE indexed_files (
+  file_path    TEXT PRIMARY KEY,
+  mtime        REAL NOT NULL,
+  content_hash TEXT NOT NULL,
+  updated_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- Tags normalizados (reemplaza el filtro LIKE '%tag%' por matching exacto)
+CREATE TABLE rule_tags (
+  rule_id TEXT NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
+  tag     TEXT NOT NULL,
+  PRIMARY KEY (rule_id, tag)
+);
+
+CREATE TABLE lesson_tags (
+  lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  tag       TEXT NOT NULL,
+  PRIMARY KEY (lesson_id, tag)
+);
+
+-- Índices para rendimiento
+CREATE INDEX idx_rules_scope_id ON rules(scope_id);
+CREATE INDEX idx_rules_severity ON rules(severity);
+CREATE INDEX idx_rules_category ON rules(category);
+CREATE INDEX idx_rules_status ON rules(status);
+CREATE INDEX idx_scope_attributes_key_value ON scope_attributes(key, value);
+CREATE INDEX idx_rule_attributes_key_value ON rule_attributes(key, value);
+CREATE INDEX idx_lessons_scope_id ON lessons(scope_id);
+CREATE INDEX idx_lessons_status ON lessons(status);
+CREATE INDEX idx_pending_proposals_status ON pending_proposals(status);
+CREATE INDEX idx_pending_proposals_target_id ON pending_proposals(target_id);
+CREATE INDEX idx_access_log_timestamp ON access_log(timestamp);
+CREATE INDEX idx_access_log_tool_name ON access_log(tool_name);
+CREATE INDEX idx_rule_history_rule_id ON rule_history(rule_id);
+CREATE INDEX idx_lesson_history_lesson_id ON lesson_history(lesson_id);
+CREATE INDEX idx_pending_proposals_scope_id ON pending_proposals(scope_id);
+CREATE INDEX idx_pr_audits_ref_project ON pr_audits(pr_ref, project_id);
+CREATE INDEX idx_rule_tags_tag ON rule_tags(tag);
+CREATE INDEX idx_lesson_tags_tag ON lesson_tags(tag);
+
+-- Inserts iniciales de scopes
+INSERT INTO scopes VALUES ('global',              'global', 'Global',              NULL);
+INSERT INTO scopes VALUES ('global-java',         'global', 'Global Java',         'global');
+INSERT INTO scopes VALUES ('global-quarkus',      'global', 'Global Quarkus',      'global-java');
+INSERT INTO scopes VALUES ('global-spring-boot',  'global', 'Global Spring Boot',  'global-java');
+INSERT INTO scopes VALUES ('global-nodejs',       'global', 'Global Node.js',      'global');
+INSERT INTO scopes VALUES ('global-express',      'global', 'Global Express',      'global-nodejs');
+INSERT INTO scopes VALUES ('global-adonisjs',     'global', 'Global AdonisJS',     'global-nodejs');
+INSERT INTO scopes VALUES ('global-nestjs',       'global', 'Global NestJS',       'global-nodejs');
+INSERT INTO scopes VALUES ('global-react',        'global', 'Global React',        'global');
+INSERT INTO scopes VALUES ('global-go',           'global', 'Global Go',           'global');
+INSERT INTO scopes VALUES ('global-go-fiber',     'global', 'Global Go Fiber',     'global-go');
+INSERT INTO scopes VALUES ('global-go-gin',       'global', 'Global Go Gin',       'global-go');
+INSERT INTO scopes VALUES ('global-flutter',      'global', 'Global Flutter',      'global');
+INSERT INTO scopes VALUES ('global-python',       'global', 'Global Python',       'global');
+INSERT INTO scopes VALUES ('global-fastmcp',      'global', 'Global FastMCP',      'global-python');
+
+INSERT INTO scopes VALUES ('project-project-example', 'project', 'Project Example',  'global-quarkus');
+INSERT INTO scopes VALUES ('project-other-project-example',     'project', 'other-project-example',      'global-nestjs');
+INSERT INTO scopes VALUES ('project-ledger',         'project', 'Ledger',          'global-flutter');
+INSERT INTO scopes VALUES ('project-axiom-meridian', 'project', 'Axiom Meridian',  'global-fastmcp');
+
+-- Atributos de proyecto
+INSERT INTO scope_attributes VALUES ('project-project-example', 'framework',      'quarkus');
+INSERT INTO scope_attributes VALUES ('project-project-example', 'component_role', 'gateway');
+INSERT INTO scope_attributes VALUES ('project-project-example', 'runtime_version','java-21');
+INSERT INTO scope_attributes VALUES ('project-other-project-example',     'framework',      'nestjs');
+INSERT INTO scope_attributes VALUES ('project-other-project-example',     'component_role', 'last-mile');
+INSERT INTO scope_attributes VALUES ('project-ledger',         'framework',      'flutter');
+INSERT INTO scope_attributes VALUES ('project-ledger',         'component_role', 'mobile-client');
+INSERT INTO scope_attributes VALUES ('project-axiom-meridian', 'framework',      'fastmcp');
+INSERT INTO scope_attributes VALUES ('project-axiom-meridian', 'component_role', 'mcp-server');
+INSERT INTO scope_attributes VALUES ('project-axiom-meridian', 'runtime_version','python-3.11');
+
+-- Atributos de scope global
+INSERT INTO scope_attributes VALUES ('global-java',        'framework', 'java');
+INSERT INTO scope_attributes VALUES ('global-quarkus',     'framework', 'quarkus');
+INSERT INTO scope_attributes VALUES ('global-spring-boot', 'framework', 'spring-boot');
+INSERT INTO scope_attributes VALUES ('global-nodejs',      'framework', 'nodejs');
+INSERT INTO scope_attributes VALUES ('global-express',     'framework', 'express');
+INSERT INTO scope_attributes VALUES ('global-adonisjs',    'framework', 'adonisjs');
+INSERT INTO scope_attributes VALUES ('global-nestjs',      'framework', 'nestjs');
+INSERT INTO scope_attributes VALUES ('global-react',       'framework', 'react');
+INSERT INTO scope_attributes VALUES ('global-go',          'framework', 'go');
+INSERT INTO scope_attributes VALUES ('global-go-fiber',    'framework', 'go-fiber');
+INSERT INTO scope_attributes VALUES ('global-go-gin',      'framework', 'go-gin');
+INSERT INTO scope_attributes VALUES ('global-flutter',     'framework', 'flutter');
+INSERT INTO scope_attributes VALUES ('global-python',      'framework', 'python');
+INSERT INTO scope_attributes VALUES ('global-fastmcp',     'framework', 'fastmcp');

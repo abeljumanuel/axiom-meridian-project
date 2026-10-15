@@ -1,0 +1,100 @@
+"""Tests for bug fixes - type normalization and scope_to_file_path fallback."""
+
+from __future__ import annotations
+
+import pytest
+
+
+class TestTypeNormalization:
+    """Tests for type normalization in create_pending_proposal."""
+
+    def test_type_is_lowercased_before_validation(self):
+        """An uppercase type ("UPDATE") must pass the type-validity check, so the
+        error that surfaces is the next validation down the line (missing
+        target_id) rather than "Invalid proposal type: UPDATE"."""
+        from meridian.tools.extraction import create_pending_proposal
+
+        with pytest.raises(ValueError, match="target_id is required"):
+            create_pending_proposal(
+                conn=None,
+                type="UPDATE",
+                proposed_text="some proposed text",
+                suggested_scope_id="global",
+            )
+
+
+class TestScopeToFilePathFallback:
+    """Tests for _scope_to_file_path fallback behavior."""
+
+    def test_lesson_fallback_to_knowledge_base(self, tmp_path, monkeypatch):
+        """When lessons/ doesn't exist, should fallback to knowledge-base/."""
+        kb_path = tmp_path / "kb"
+        kb_path.mkdir()
+        (kb_path / "knowledge-base" / "global").mkdir(parents=True)
+        (kb_path / "knowledge-base" / "projects").mkdir(parents=True)
+
+        monkeypatch.setenv("KNOWLEDGE_BASE_PATH", str(kb_path))
+        from meridian.tools.knowledge_management import _scope_to_file_path
+        from meridian.config import get_knowledge_base_path
+
+        kb = get_knowledge_base_path()
+        assert (kb / "lessons").is_dir()
+        assert (kb / "knowledge-base").is_dir()
+
+        path = _scope_to_file_path("global-quarkus", "lesson")
+        assert "lessons" in str(path)
+
+
+class TestCreateProject:
+    """Tests for create_project function."""
+
+    def test_create_project(self, tmp_path, monkeypatch):
+        """create_project should insert scope and create directories."""
+        kb_path = tmp_path / "kb"
+        kb_path.mkdir()
+        (kb_path / "knowledge-base" / "global").mkdir(parents=True)
+        (kb_path / "knowledge-base" / "projects").mkdir(parents=True)
+        (kb_path / "lessons" / "global").mkdir(parents=True)
+        (kb_path / "lessons" / "projects").mkdir(parents=True)
+
+        monkeypatch.setenv("KNOWLEDGE_BASE_PATH", str(kb_path))
+        from meridian.config import get_db_path
+        from meridian.db.connection import get_connection, initialize_db
+        from meridian.tools.knowledge_management import create_project
+
+        db_path = get_db_path()
+        initialize_db(db_path)
+
+        conn = get_connection(db_path)
+
+        result = create_project(conn, "ms-upi-device-manager", name="MS UPI Device Manager", parent_scope="global-quarkus")
+
+        assert result["scope_id"] == "project-ms-upi-device-manager"
+        assert result["name"] == "MS UPI Device Manager"
+        assert result["parent_scope"] == "global-quarkus"
+        assert (kb_path / "knowledge-base" / "projects" / "ms-upi-device-manager.md").exists()
+
+
+class TestAutoKBPath:
+    """Tests for auto-managed knowledge base path."""
+
+    def test_get_default_kb_path_linux(self, monkeypatch):
+        """On Linux, should use ~/.local/share/meridian."""
+        import sys
+        monkeypatch.setattr(sys, "platform", "linux")
+        from meridian.config import _get_default_kb_path
+        path = _get_default_kb_path()
+        assert path.as_posix().endswith(".local/share/meridian")
+
+    def test_ensure_kb_structure_creates_dirs(self, tmp_path):
+        """_ensure_kb_structure should create all required directories."""
+        from meridian.config import _ensure_kb_structure
+
+        kb_path = tmp_path / "kb"
+        _ensure_kb_structure(kb_path)
+
+        assert (kb_path / "knowledge-base" / "global").is_dir()
+        assert (kb_path / "knowledge-base" / "projects").is_dir()
+        assert (kb_path / "lessons" / "global").is_dir()
+        assert (kb_path / "lessons" / "projects").is_dir()
+        assert (kb_path / "meridian.db").exists()

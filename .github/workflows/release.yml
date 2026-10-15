@@ -1,0 +1,44 @@
+# Publishes to PyPI on a version tag (v0.1.0, v1.2.3, ...) via Trusted
+# Publishing (OIDC) — no API token is stored anywhere. The PyPI side must be
+# configured once for owner `abeljumanuel`, repository `axiom-meridian-project`,
+# workflow `release.yml`, environment `pypi` (a "pending publisher" before the
+# first release creates the project).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Tag matches the package version
+        run: |
+          version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/meridian/__init__.py)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match src/meridian/__init__.py version $version" >&2
+            exit 1
+          fi
+      - name: Every version declaration and the CHANGELOG agree with the tag
+        run: python3 scripts/release_version.py check "${GITHUB_REF_NAME#v}" --require-changelog
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # OIDC token for PyPI Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

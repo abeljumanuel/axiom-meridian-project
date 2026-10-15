@@ -11,7 +11,7 @@
 | **Academic context** | Capstone project — Master's Degree in Artificial Intelligence |
 | **Category** | Developer tooling / AI agent infrastructure / knowledge management |
 | **Current version** | v0.1.0 |
-| **License** | MIT |
+| **License** | Apache-2.0 (see [LICENSE](../LICENSE) and [NOTICE](../NOTICE)) |
 | **Primary language** | Python 3.11+ |
 | **Core framework** | [FastMCP](https://github.com/jlowin/fastmcp) (Model Context Protocol server implementation) |
 | **Persistence** | Markdown (source of truth) + SQLite (index/state layer) + ChromaDB (optional vector store for semantic search) |
