@@ -184,8 +184,8 @@
   PyPI long description of the first release.
   **Verify**: `uv build` and confirm the marker appears in the wheel's
   `METADATA` description.
-- [ ] 3.5 **MANUAL (maintainer)**: create/confirm the PyPI account.
-- [ ] 3.6 **MANUAL (maintainer)**: configure Trusted Publishing on PyPI
+- [x] 3.5 **MANUAL (maintainer)**: create/confirm the PyPI account.
+- [x] 3.6 **MANUAL (maintainer)**: configure Trusted Publishing on PyPI
   for the `axiom-meridian` project with owner `abeljumanuel`,
   repository `axiom-meridian-project`, workflow `release.yml` (not the
   old `axiom-meridian` repo — see design.md D6) — for a not-yet-existing project this is a
