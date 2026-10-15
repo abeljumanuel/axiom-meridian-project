@@ -1,0 +1,17 @@
+{
+  "name": "axiom-meridian",
+  "owner": {
+    "name": "Juan Manuel Rojas González"
+  },
+  "metadata": {
+    "description": "Axiom Meridian — knowledge audit MCP server for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "meridian",
+      "source": "./distribution/plugin/meridian",
+      "description": "Axiom Meridian MCP server plus a skill for applying team rules and lessons learned.",
+      "version": "0.1.0"
+    }
+  ]
+}

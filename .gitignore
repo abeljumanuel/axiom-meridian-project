@@ -65,3 +65,16 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# --- Migrated from axiom-meridian ---
+# SQLite journal files and migration-runner backups (<db>.bak-<timestamp>)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak-*
+# Knowledge base (outside repo, user-managed)
+meridian-kb/
+# Local MCP client config — contains this machine's absolute venv path.
+# Track opencode.json.example instead.
+opencode.json

@@ -1,0 +1,581 @@
+# SPDX-FileCopyrightText: 2026 Juan Manuel Rojas González (Axiom JUMA)
+# SPDX-License-Identifier: Apache-2.0
+"""Knowledge consumption tools — query, context, timeline, audit log."""
+
+from __future__ import annotations
+
+import json
+import logging
+import sqlite3
+from typing import Any
+
+from meridian.config import get_db_path
+from meridian.db.connection import get_connection
+from meridian.rag import embedder, vector_store
+from meridian.utils.read_index import check_files_fresh
+from meridian.utils.scope_resolver import (
+    filter_by_attributes,
+    load_scope_attributes,
+    resolve_scope_hierarchy,
+)
+from meridian.utils.serializers import serialize
+
+logger = logging.getLogger(__name__)
+
+
+def _resolve_full_text(
+    rows: list[dict[str, Any]],
+    conn: sqlite3.Connection,
+    source_field: str,
+) -> list[dict[str, Any]]:
+    """Return one {"text": ...} or {"text": None, "error": "STALE_INDEX"} per
+    row in `rows`, aligned by position, for detail="full" queries.
+
+    Reads from `source_field` (the value already loaded by `SELECT *`) —
+    never rereads the .md file per row. Rows without a `file_path` (RAG
+    results, whose text lives only in ChromaDB) always serve their embedded
+    text as-is. Rows with a `file_path` serve it only if that file is fresh
+    per `indexed_files` (one check per distinct file, not per row); a stale
+    or unindexed file yields `text: None, error: "STALE_INDEX"` — same shape
+    as before (ADR-001), just resolved at file granularity instead of
+    per-row byte offsets (ADR-005).
+    """
+    file_paths = [r["file_path"] for r in rows if r.get("file_path")]
+    freshness = check_files_fresh(conn, file_paths) if file_paths else {}
+
+    resolved: list[dict[str, Any]] = []
+    for r in rows:
+        file_path = r.get("file_path")
+        if not file_path or freshness.get(file_path):
+            resolved.append({"text": r.get(source_field)})
+        else:
+            resolved.append({"text": None, "error": "STALE_INDEX"})
+    return resolved
+
+
+def _warn_if_pending_embeddings(
+    conn: sqlite3.Connection, table: str, scopes: list[str]
+) -> None:
+    """Log a warning naming how many active rows in these scopes still
+    have embedding_id IS NULL — semantic (query_text) search silently
+    can't return them (they were never upserted into the vector store),
+    so this is the only signal an operator gets short of grepping SQL."""
+    if not scopes:
+        return
+    placeholders = ",".join("?" for _ in scopes)
+    count = conn.execute(
+        f"SELECT COUNT(*) FROM {table} "  # noqa: S608
+        f"WHERE scope_id IN ({placeholders}) AND status = 'active' "
+        "AND embedding_id IS NULL",
+        scopes,
+    ).fetchone()[0]
+    if count:
+        logger.warning(
+            "%d active row(s) in %s lack an embedding and are invisible to "
+            "this semantic search (scopes: %s) — run generate_embeddings "
+            "to backfill them",
+            count, table, scopes,
+        )
+
+
+def _normalize_rag_rule(candidate: dict) -> dict[str, Any]:
+    """Convert a ChromaDB candidate into the same shape as a SQL row."""
+    meta = candidate.get("metadata", {})
+    return {
+        "id": candidate["id"],
+        "code": candidate["id"],
+        "scope_id": meta.get("scope_id", ""),
+        "severity": meta.get("severity", ""),
+        "category": meta.get("category", ""),
+        "applies_to": meta.get("applies_to", ""),
+        "tags": meta.get("tags", "[]"),
+        "text": candidate.get("text", ""),
+        "file_path": None,
+        "file_offset": None,
+        "byte_length": None,
+    }
+
+
+def _apply_metadata_filters(
+    candidates: list[dict],
+    category: str | None,
+    severity: str | None,
+    tags: str | list[str] | None,
+) -> list[dict]:
+    """Post-filter ChromaDB candidates by explicit metadata filters."""
+    results = candidates
+    if category is not None:
+        results = [
+            c
+            for c in results
+            if c.get("metadata", {}).get("category") == category
+        ]
+    if severity is not None:
+        results = [
+            c
+            for c in results
+            if c.get("metadata", {}).get("severity") == severity
+        ]
+    if tags is not None:
+        tag_list = [tags] if isinstance(tags, str) else tags
+        filtered: list[dict] = []
+        for c in results:
+            meta_tags = c.get("metadata", {}).get("tags", "[]")
+            if isinstance(meta_tags, str):
+                try:
+                    parsed = json.loads(meta_tags)
+                except json.JSONDecodeError:
+                    parsed = [t.strip() for t in meta_tags.split(",") if t.strip()]
+                meta_tags = parsed
+            if any(t in meta_tags for t in tag_list):
+                filtered.append(c)
+        results = filtered
+    return results
+
+
+def query_rules(
+    project_id: str,
+    category: str | None = None,
+    severity: str | None = None,
+    tags: str | list[str] | None = None,
+    query_text: str | None = None,
+    format: str = "json",
+    detail: str = "summary",
+    include_deprecated: bool = False,
+    conn: sqlite3.Connection | None = None,
+) -> str:
+    """Query rules for a project using SQL or RAG filtering.
+
+    By default only active rules are returned. include_deprecated=True
+    includes deprecated rules in the plain-SQL path; it does not revive
+    results from the semantic (query_text) path, since deprecated rules
+    are removed from the vector index on deprecation — use
+    get_rule_context/get_rule_audit_log to inspect a specific deprecated
+    rule instead.
+    """
+    close_on_exit = False
+    if conn is None:
+        conn = get_connection(get_db_path())
+        close_on_exit = True
+    try:
+        scopes = resolve_scope_hierarchy(conn, project_id)
+        attributes = load_scope_attributes(conn, project_id)
+
+        if query_text and vector_store.chromadb_available():
+            _warn_if_pending_embeddings(conn, "rules", scopes)
+            query_embedding = embedder.generate_embedding(query_text)
+            candidates = vector_store.search_rules(
+                query_embedding, scopes, top_k=20
+            )
+            candidates = _apply_metadata_filters(
+                candidates, category, severity, tags
+            )
+            results = [_normalize_rag_rule(c) for c in candidates]
+
+            candidate_ids = [r["id"] for r in results]
+            filtered_ids = filter_by_attributes(conn, candidate_ids, attributes)
+            filtered_set = set(filtered_ids)
+            results = [r for r in results if r["id"] in filtered_set]
+        else:
+            placeholders = ",".join("?" for _ in scopes)
+            sql = f"SELECT * FROM rules WHERE scope_id IN ({placeholders})"
+            if not include_deprecated:
+                sql += " AND status = 'active'"
+            params: list[Any] = list(scopes)
+
+            if category is not None:
+                sql += " AND category = ?"
+                params.append(category)
+            if severity is not None:
+                sql += " AND severity = ?"
+                params.append(severity)
+            if tags is not None:
+                tag_list = [tags] if isinstance(tags, str) else list(tags)
+                if tag_list:
+                    or_clauses = " OR ".join("rt.tag = ?" for _ in tag_list)
+                    sql += (
+                        " AND EXISTS (SELECT 1 FROM rule_tags rt "
+                        f"WHERE rt.rule_id = rules.id AND ({or_clauses}))"
+                    )
+                    params.extend(tag_list)
+
+            cursor = conn.execute(sql, params)
+            columns = [d[0] for d in cursor.description]
+            candidates = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+            candidate_ids = [r["id"] for r in candidates]
+            filtered_ids = filter_by_attributes(conn, candidate_ids, attributes)
+            filtered_set = set(filtered_ids)
+
+            results = [r for r in candidates if r["id"] in filtered_set]
+
+        scope_order = {s: i for i, s in enumerate(scopes)}
+        results.sort(key=lambda r: scope_order.get(r["scope_id"], 999))
+
+        summary_fields = [
+            "code", "scope_id", "severity", "category", "applies_to", "tags"
+        ]
+        full_fields = [*summary_fields, "text"]
+
+        if detail == "summary":
+            output = [{k: r[k] for k in summary_fields} for r in results]
+            return serialize(
+                output, format, summary_fields if format == "toon" else None
+            )
+
+        if detail == "full":
+            resolved = _resolve_full_text(results, conn, "text")
+            output = [
+                {**{k: r[k] for k in summary_fields}, **pos}
+                for r, pos in zip(results, resolved)
+            ]
+            return serialize(
+                output, format, full_fields if format == "toon" else None
+            )
+
+        raise ValueError(
+            f"Unknown detail: {detail}. Valid: 'summary', 'full'"
+        )
+    finally:
+        if close_on_exit:
+            conn.close()
+
+
+def _normalize_rag_lesson(candidate: dict) -> dict[str, Any]:
+    """Convert a ChromaDB lesson candidate into the same shape as a SQL row."""
+    meta = candidate.get("metadata", {})
+    return {
+        "id": candidate["id"],
+        "code": candidate["id"],
+        "scope_id": meta.get("scope_id", ""),
+        "severity": meta.get("severity", ""),
+        "area_affected": meta.get("area_affected", ""),
+        "tags": meta.get("tags", "[]"),
+        "text": candidate.get("text", ""),
+        "what_happened": candidate.get("text", ""),
+        "file_path": None,
+        "file_offset": None,
+        "byte_length": None,
+    }
+
+
+def query_lessons(
+    project_id: str,
+    area: str | None = None,
+    tags: str | list[str] | None = None,
+    query_text: str | None = None,
+    format: str = "json",
+    detail: str = "summary",
+    include_deprecated: bool = False,
+    conn: sqlite3.Connection | None = None,
+) -> str:
+    """Query lessons for a project using SQL or RAG filtering.
+
+    By default only active lessons are returned. include_deprecated=True
+    includes deprecated lessons in the plain-SQL path; it does not revive
+    results from the semantic (query_text) path, since deprecated lessons
+    are removed from the vector index on deprecation.
+    """
+    close_on_exit = False
+    if conn is None:
+        conn = get_connection(get_db_path())
+        close_on_exit = True
+    try:
+        scopes = resolve_scope_hierarchy(conn, project_id)
+
+        if query_text and vector_store.chromadb_available():
+            _warn_if_pending_embeddings(conn, "lessons", scopes)
+            query_embedding = embedder.generate_embedding(query_text)
+            candidates = vector_store.search_lessons(
+                query_embedding, scopes, top_k=20
+            )
+            candidates = _apply_metadata_filters(candidates, None, None, tags)
+            if area is not None:
+                candidates = [
+                    c
+                    for c in candidates
+                    if c.get("metadata", {}).get("area_affected") == area
+                ]
+            results = [_normalize_rag_lesson(c) for c in candidates]
+        else:
+            placeholders = ",".join("?" for _ in scopes)
+            sql = f"SELECT * FROM lessons WHERE scope_id IN ({placeholders})"
+            if not include_deprecated:
+                sql += " AND status = 'active'"
+            params: list[Any] = list(scopes)
+
+            if area is not None:
+                sql += " AND area_affected = ?"
+                params.append(area)
+            if tags is not None:
+                tag_list = [tags] if isinstance(tags, str) else list(tags)
+                if tag_list:
+                    or_clauses = " OR ".join("lt.tag = ?" for _ in tag_list)
+                    sql += (
+                        " AND EXISTS (SELECT 1 FROM lesson_tags lt "
+                        f"WHERE lt.lesson_id = lessons.id AND ({or_clauses}))"
+                    )
+                    params.extend(tag_list)
+
+            cursor = conn.execute(sql, params)
+            columns = [d[0] for d in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        scope_order = {s: i for i, s in enumerate(scopes)}
+        results.sort(key=lambda r: scope_order.get(r["scope_id"], 999))
+
+        summary_fields = [
+            "code", "scope_id", "severity", "area_affected", "tags"
+        ]
+        full_fields = [*summary_fields, "text"]
+
+        if detail == "summary":
+            output = [{k: r[k] for k in summary_fields} for r in results]
+            return serialize(
+                output, format, summary_fields if format == "toon" else None
+            )
+
+        if detail == "full":
+            resolved = _resolve_full_text(results, conn, "what_happened")
+            output = [
+                {**{k: r[k] for k in summary_fields}, **pos}
+                for r, pos in zip(results, resolved)
+            ]
+            return serialize(
+                output, format, full_fields if format == "toon" else None
+            )
+
+        raise ValueError(
+            f"Unknown detail: {detail}. Valid: 'summary', 'full'"
+        )
+    finally:
+        if close_on_exit:
+            conn.close()
+
+
+def get_rule_timeline(
+    rule_id: str,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any]:
+    """Return chronological history of a rule without loading full text."""
+    close_on_exit = False
+    if conn is None:
+        conn = get_connection(get_db_path())
+        close_on_exit = True
+    try:
+        cursor = conn.execute(
+            "SELECT code, scope_id, severity, category FROM rules WHERE id = ?",
+            (rule_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise ValueError(f"Rule {rule_id} not found")
+
+        code, scope_id, severity, category = row
+
+        cursor = conn.execute(
+            "SELECT change_type, reason, triggered_by, changed_at "
+            "FROM rule_history WHERE rule_id = ? ORDER BY changed_at",
+            (rule_id,),
+        )
+        history_events = [
+            dict(
+                zip(
+                    ["change_type", "reason", "triggered_by", "changed_at"],
+                    r,
+                )
+            )
+            for r in cursor.fetchall()
+        ]
+
+        cursor = conn.execute(
+            """
+            SELECT l.code, l.area_affected, l.severity
+            FROM lessons l
+            JOIN rule_lesson_links rll ON l.id = rll.lesson_id
+            WHERE rll.rule_id = ?
+            """,
+            (rule_id,),
+        )
+        linked_lessons_summary = [
+            dict(zip(["code", "area", "severity"], r))
+            for r in cursor.fetchall()
+        ]
+
+        return {
+            "rule_code": code,
+            "scope": scope_id,
+            "severity": severity,
+            "category": category,
+            "history_events": history_events,
+            "linked_lessons_summary": linked_lessons_summary,
+        }
+    finally:
+        if close_on_exit:
+            conn.close()
+
+
+def get_rule_context(
+    rule_id: str,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any]:
+    """Return full rule text + history + linked lessons."""
+    close_on_exit = False
+    if conn is None:
+        conn = get_connection(get_db_path())
+        close_on_exit = True
+    try:
+        cursor = conn.execute("SELECT * FROM rules WHERE id = ?", (rule_id,))
+        row = cursor.fetchone()
+        if row is None:
+            raise ValueError(f"Rule {rule_id} not found")
+
+        columns = [d[0] for d in cursor.description]
+        rule = dict(zip(columns, row))
+
+        [rule_pos] = _resolve_full_text([rule], conn, "text")
+        rule.update(rule_pos)
+
+        cursor = conn.execute(
+            "SELECT * FROM rule_history WHERE rule_id = ? ORDER BY changed_at",
+            (rule_id,),
+        )
+        hist_columns = [d[0] for d in cursor.description]
+        history = [
+            dict(zip(hist_columns, r)) for r in cursor.fetchall()
+        ]
+
+        cursor = conn.execute(
+            """
+            SELECT l.* FROM lessons l
+            JOIN rule_lesson_links rll ON l.id = rll.lesson_id
+            WHERE rll.rule_id = ?
+            """,
+            (rule_id,),
+        )
+        lesson_columns = [d[0] for d in cursor.description]
+        lessons = [
+            dict(zip(lesson_columns, lesson_row))
+            for lesson_row in cursor.fetchall()
+        ]
+        for lesson, pos_lesson in zip(
+            lessons, _resolve_full_text(lessons, conn, "what_happened")
+        ):
+            lesson.update(pos_lesson)
+
+        return {
+            "rule": rule,
+            "history": history,
+            "linked_lessons": lessons,
+        }
+    finally:
+        if close_on_exit:
+            conn.close()
+
+
+def get_project_scope_resolution(
+    project_id: str,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any]:
+    """Return effective scopes for a project with attributes."""
+    close_on_exit = False
+    if conn is None:
+        conn = get_connection(get_db_path())
+        close_on_exit = True
+    try:
+        scopes = resolve_scope_hierarchy(conn, project_id)
+
+        scope_data: list[dict[str, Any]] = []
+        for scope in scopes:
+            attrs = load_scope_attributes(conn, scope)
+            scope_data.append({"scope_id": scope, "attributes": attrs})
+
+        resolved_scopes_json = json.dumps(scopes)
+        conn.execute(
+            """
+            INSERT INTO project_scope_resolution (project_id, resolved_scopes)
+            VALUES (?, ?)
+            ON CONFLICT(project_id) DO UPDATE SET
+                resolved_scopes = excluded.resolved_scopes,
+                updated_at = datetime('now')
+            """,
+            (project_id, resolved_scopes_json),
+        )
+        conn.commit()
+
+        return {
+            "project_id": project_id,
+            "scopes": scope_data,
+        }
+    finally:
+        if close_on_exit:
+            conn.close()
+
+
+def get_rule_audit_log(
+    project_id: str | None = None,
+    scope_id: str | None = None,
+    since: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any]:
+    """Return chronology of rule changes from rule_history."""
+    close_on_exit = False
+    if conn is None:
+        conn = get_connection(get_db_path())
+        close_on_exit = True
+    try:
+        query = (
+            "SELECT rh.*, r.code as rule_code, r.scope_id, r.status as rule_status "
+            "FROM rule_history rh "
+            "JOIN rules r ON rh.rule_id = r.id "
+            "WHERE 1=1"
+        )
+        params: list[Any] = []
+
+        target_scope = project_id or scope_id
+        if target_scope is not None:
+            query += " AND r.scope_id = ?"
+            params.append(target_scope)
+
+        if since is not None:
+            query += " AND rh.changed_at >= ?"
+            params.append(since)
+
+        query += " ORDER BY rh.changed_at"
+
+        cursor = conn.execute(query, params)
+        columns = [d[0] for d in cursor.description]
+        events = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        deprecated_rules: list[dict[str, Any]] = []
+        if target_scope is not None:
+            # IN ('DEPRECATED', 'PROMOTED'): promote_rule records its
+            # deprecation side effect as 'PROMOTED', not 'DEPRECATED' — a
+            # rule deprecated via promote_rule was previously invisible
+            # here (add-rule-lesson-deprecation).
+            cursor = conn.execute(
+                """
+                SELECT r.*, rh.reason as deprecation_reason, rh.superseded_by
+                FROM rules r
+                JOIN rule_history rh ON r.id = rh.rule_id
+                WHERE r.scope_id = ? AND r.status = 'deprecated'
+                    AND rh.change_type IN ('DEPRECATED', 'PROMOTED')
+                """,
+                (target_scope,),
+            )
+            dep_columns = [d[0] for d in cursor.description]
+            for dep_row in cursor.fetchall():
+                dep_rule = dict(zip(dep_columns, dep_row))
+                # Rows written before migration 005 have superseded_by
+                # NULL even for a 'PROMOTED' entry — reason (e.g.
+                # "Promoted to scope X") remains the only information
+                # for those, so it is not overwritten here.
+                deprecated_rules.append(dep_rule)
+
+        return {
+            "events": events,
+            "deprecated_rules": deprecated_rules,
+        }
+    finally:
+        if close_on_exit:
+            conn.close()

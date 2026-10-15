@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "meridian": {
+      "command": "uvx",
+      "args": ["--from", "axiom-meridian", "meridian", "mcp"]
+    }
+  }
+}

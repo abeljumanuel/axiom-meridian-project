@@ -1,0 +1,55 @@
+# Lint + tests on every push/PR. The no-RAG matrix exercises the default
+# (`pip install axiom-meridian`) install on all three OSes by real absence of
+# torch/sentence-transformers/chromadb; one Linux job runs with the `rag`
+# extra so the semantic-search suites run too.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, no rag)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev
+      - run: uv run ruff check src tests
+      - run: uv run pytest
+
+  test-rag:
+    name: test (ubuntu-latest, rag)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev --extra rag
+      - run: uv run pytest
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build
+      - run: uvx twine check dist/*
+
+  distribution:
+    name: distribution checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Versions in sync + plugin skill copy identical
+        run: uv run --no-project python scripts/check_versions.py
+      - name: Skill marketplace safety scan
+        run: uv run --no-project python scripts/check_skill_safety.py
+      - name: Package the skill zip (verified byte-for-byte)
+        run: uv run --no-project python scripts/package_skill.py

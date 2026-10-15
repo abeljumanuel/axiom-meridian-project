@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.abeljumanuel/axiom-meridian",
+  "title": "Axiom Meridian",
+  "description": "Serves only the team rules and lessons learned relevant to a project. Code drifts. Meridian doesn't.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/abeljumanuel/axiom-meridian-project",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/abeljumanuel/axiom-meridian-project",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "axiom-meridian",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "KNOWLEDGE_BASE_PATH",
+          "description": "Knowledge base root (Markdown files + SQLite index). Defaults to an OS-specific per-user data directory.",
+          "isRequired": false
+        },
+        {
+          "name": "MERIDIAN_ACCESS_LEVEL",
+          "description": "Which tools may run: read, analyze, or write (write is needed to approve proposals).",
+          "isRequired": false,
+          "default": "analyze",
+          "choices": ["read", "analyze", "write"]
+        }
+      ]
+    }
+  ]
+}

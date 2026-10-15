@@ -85,9 +85,9 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change proposal under `openspec/changes/`, which holds the formal, testable acceptance criteria (as delta specs) plus the design and task breakdown. The ticket entries here stay short — ID, description, status — and defer to OpenSpec for the detail.
 
 ### TICKET-012 — Windows one-line installer
-- **Type:** Feature | **Priority:** Should | **Status:** Backlog
-- **Description:** `scripts/install.sh` covers Linux/macOS; Windows currently requires manual installation. Provide a PowerShell equivalent (`install.ps1`) with the same client auto-detection (Claude Code, VSCode, OpenCode, Kimi CLI).
-- **OpenSpec change:** [`add-windows-installer`](../openspec/changes/add-windows-installer/)
+- **Type:** Feature | **Priority:** Should | **Status:** Superseded by [TICKET-018](#ticket-018--cross-platform-installation-and-distribution)
+- **Description:** `scripts/install.sh` covered only Linux/macOS, and Windows required manual installation. The original plan was a PowerShell port (`install.ps1`) with the same client auto-detection. TICKET-018 covers Windows without it: client detection and configuration moved into the cross-platform `meridian setup` command (Python), so on Windows installing is `uv tool install axiom-meridian` followed by `meridian setup`, and a `.ps1` would only duplicate that logic.
+- **OpenSpec change:** `add-windows-installer` (removed — superseded by [`improve-installation-and-distribution`](../openspec/changes/improve-installation-and-distribution/))
 
 ### TICKET-013 — V2 semantic search upgrade
 - **Type:** Feature / Performance | **Priority:** Could | **Status:** Backlog
@@ -107,9 +107,9 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **OpenSpec change:** [`harden-networked-deployment`](../openspec/changes/harden-networked-deployment/)
 
 ### TICKET-016 — Cross-reference `source_ref` with Engram observations
-- **Type:** Feature | **Priority:** Could | **Status:** Backlog
+- **Type:** Feature | **Priority:** Could | **Status:** Discarded
 - **Description:** Where Engram (episodic session memory) is present, allow a rule/lesson's `source_ref` to resolve to an Engram `observation_id` for cross-tool traceability, without introducing a hard dependency on Engram.
-- **OpenSpec change:** [`link-source-ref-to-engram`](../openspec/changes/link-source-ref-to-engram/)
+- **OpenSpec change:** `link-source-ref-to-engram` (removed — ticket discarded)
 
 ### TICKET-017 — Read-only observability dashboard
 - **Type:** Feature | **Priority:** Could | **Status:** Backlog
@@ -117,6 +117,22 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **Description:** Build a small, standalone frontend for humans (not agents) to visually inspect Meridian's state without writing Python snippets — server health, scope hierarchy, rule/lesson counts, pending proposals, a rendered usage manual, and an embedding projector. Runs as a separate local process, reusing `knowledge_consumption` functions as a library; never speaks the MCP protocol or performs writes.
 - **Explicitly deferred because:** it sits outside the core MCP/knowledge-governance scope of the capstone (agent-facing tools, scope resolution, governed writes, RAG) and would add a second stack (HTTP API + frontend + its own auth/testing surface) without changing what an agent can do. Treated as an optional companion, evaluated only if time remains after the core backlog above.
 - **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
+
+### TICKET-018 — Cross-platform installation and distribution
+- **Type:** Feature | **Priority:** Must | **Status:** In progress
+- **Description:** Make Meridian installable in one command on Linux, macOS and Windows without cloning the repo, and distributable through agent-facing channels, while the server stays self-hosted. This covers:
+  - The semantic-search libraries (`torch`, `sentence-transformers`, `chromadb`) become an optional `[rag]` extra. The base install drops from about 1.1 GB to 59 MB, and every RAG path degrades cleanly without it (`RAG_NOT_INSTALLED`, SQL fallback).
+  - New cross-platform `meridian setup` (client detection and configuration for Claude Code, VSCode, Cursor, OpenCode and Kimi CLI, knowledge-base creation, no-clobber example seeding) and `meridian doctor` (read-only diagnostics).
+  - `install.sh` is now a thin wrapper around `uv tool install` and `meridian setup`.
+  - PyPI packaging with a Trusted Publishing release workflow, and a CI workflow across the three OSes.
+  - A distributable skill, a Claude Code plugin with a marketplace, and an MCP Registry `server.json`.
+  - Implementation is complete. What remains is publishing (PyPI account, first release, registry and marketplace submissions), the first CI run on GitHub, and a clean-container smoke test.
+- **OpenSpec change:** [`improve-installation-and-distribution`](../openspec/changes/improve-installation-and-distribution/)
+
+### TICKET-019 — Relicense to Apache License 2.0
+- **Type:** Chore / Legal | **Priority:** Must | **Status:** Backlog (specified, ready to implement)
+- **Description:** Move from MIT, which is declared but has no `LICENSE` file, to Apache-2.0 before the first public release: add `LICENSE` and `NOTICE` (attribution plus a trademark statement for "Axiom Meridian" / "Axiom JUMA"), PEP 639 package metadata, SPDX headers enforced by a test, a `CONTRIBUTING.md` with a DCO sign-off, and the dependency-compatibility review. It has to land before TICKET-018's first PyPI release, because anything published under MIT stays MIT. All preconditions are confirmed: sole authorship, the rights belong to the author (not the academic program), and the legal name.
+- **OpenSpec change:** [`change-license-to-apache-2`](../openspec/changes/change-license-to-apache-2/)
 
 ## Related Documents
 

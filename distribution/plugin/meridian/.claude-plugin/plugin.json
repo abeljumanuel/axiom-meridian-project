@@ -1,0 +1,12 @@
+{
+  "name": "meridian",
+  "version": "0.1.0",
+  "description": "Axiom Meridian MCP server plus a skill: serve only the team rules (RN-*) and lessons learned (LL-*) relevant to the current project, audit PRs and plans against them, and capture new knowledge as reviewable proposals.",
+  "author": {
+    "name": "Juan Manuel Rojas González"
+  },
+  "homepage": "https://github.com/abeljumanuel/axiom-meridian-project",
+  "repository": "https://github.com/abeljumanuel/axiom-meridian-project",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "coding-standards", "code-review", "lessons-learned", "knowledge-base"]
+}

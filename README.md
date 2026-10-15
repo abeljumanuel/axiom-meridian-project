@@ -66,47 +66,33 @@ A read-only visual panel for a human (knowledge curator or platform admin) to in
 
 ### **1.4. Installation instructions:**
 
-Meridian is a Python 3.11+ package installable with [`uv`](https://docs.astral.sh/uv/) (recommended) or `pip`. Being a standard MCP server, **it can be consumed by any protocol-compatible IDE or CLI** (Claude Code, VSCode, OpenCode, Kimi CLI), but it is optimized for and tested primarily against **Claude Code**, which is the client the installer configures automatically.
+Meridian is a Python 3.11+ package (`axiom-meridian`) installed with [`uv`](https://docs.astral.sh/uv/), which fetches a compatible Python on its own. Being a standard MCP server, **it can be consumed by any protocol-compatible IDE or CLI** (Claude Code, VSCode, Cursor, OpenCode, Kimi CLI), but it is optimized for and tested primarily against **Claude Code**.
 
-**Prerequisites (all platforms):**
-- Python 3.11+
-- `uv` (faster, and can fetch its own Python 3.11 even if the system one is older)
-
-**macOS / Linux — one-step install:**
+**macOS / Linux — one-line install:**
 
 ```bash
-git clone https://github.com/abeljumanuel/axiom-meridian-project.git
-cd axiom-meridian-project
-bash scripts/install.sh
+curl -fsSL https://raw.githubusercontent.com/abeljumanuel/axiom-meridian-project/main/scripts/install.sh | bash
 ```
 
-`install.sh` detects the operating system, prefers `uv` (falling back to `python3 -m venv` + `pip`), verifies the install actually works (`meridian version`) before touching any configuration, and auto-detects and configures the MCP clients present on the machine (Claude Code, VSCode, OpenCode, Kimi CLI).
-
-**Windows — manual install (no one-line installer yet; see [TICKET-012](docs/06-work-tickets.md#ticket-012--windows-one-line-installer)):**
-
-```powershell
-# Install uv
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Clone and install
-git clone https://github.com/abeljumanuel/axiom-meridian-project.git
-cd axiom-meridian-project
-uv python pin 3.11
-uv sync
-uv pip install -e .
-.venv\Scripts\meridian version
-```
-
-**Register the server with Claude Code (any platform):**
+**Any OS, Windows included (PowerShell or a terminal with `uv` installed):**
 
 ```bash
-claude mcp add -s user \
-  -e MERIDIAN_ACCESS_LEVEL=write \
-  -- meridian \
-  "$PWD/.venv/bin/meridian" mcp
+uv tool install axiom-meridian
+meridian setup     # detects and configures your MCP clients, creates the knowledge base
+meridian doctor    # read-only check of the installation
 ```
 
-`KNOWLEDGE_BASE_PATH` is optional — Meridian auto-creates the knowledge base directory if it isn't set (`~/.local/share/meridian` on Linux, `~/Library/Application Support/meridian` on macOS, `%APPDATA%/meridian` on Windows). For other MCP clients (VSCode, OpenCode, Kimi CLI), the same `meridian mcp` binary is registered through their own configuration file (`mcp.json` / `opencode.json`), always pointing to the virtual environment's entry point rather than `uv run` or `python -m meridian`.
+On Windows, install `uv` first with `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`; no installer script is needed there, since `meridian setup` is plain Python.
+
+`install.sh` is a thin wrapper around those same commands: it installs `uv` if missing (after asking), runs `uv tool install`, and hands off to `meridian setup`, which asks before configuring each detected client (Claude Code, VSCode, Cursor, OpenCode, Kimi CLI), never overwrites existing knowledge-base files or registrations that point at a different install, and finishes with `meridian doctor`. Run from a clone (`bash scripts/install.sh`), it installs that checkout in editable mode.
+
+**Claude Code plugin** (server + usage skill in one unit): `/plugin install meridian --marketplace abeljumanuel/axiom-meridian-project`.
+
+**Semantic search is optional:** install `axiom-meridian[rag]` (~900 MB of ML libraries) to rank free-text queries by meaning; without it, queries fall back to SQL filtering and `generate_embeddings` returns a `RAG_NOT_INSTALLED` error.
+
+`KNOWLEDGE_BASE_PATH` is optional — Meridian auto-creates the knowledge base directory if it isn't set (`~/.local/share/meridian` on Linux, `~/Library/Application Support/meridian` on macOS, `%APPDATA%/meridian` on Windows). Per-client configuration, upgrading, installing from source, and troubleshooting: [docs/installation.md](https://github.com/abeljumanuel/axiom-meridian-project/blob/main/docs/installation.md).
+
+<!-- mcp-name: io.github.abeljumanuel/axiom-meridian -->
 
 ---
 
@@ -500,4 +486,12 @@ Full catalog (delivered + backlog, traced to [OpenSpec](openspec/)) in [docs/06-
 
 ## License
 
-MIT
+Axiom Meridian is licensed under the [Apache License, Version 2.0](https://github.com/abeljumanuel/axiom-meridian-project/blob/main/LICENSE). See [NOTICE](https://github.com/abeljumanuel/axiom-meridian-project/blob/main/NOTICE) for attribution.
+
+The names "Axiom Meridian" and "Axiom JUMA" and their marks are not licensed under the Apache License (section 6, *Trademarks*). Using them requires the owner's permission.
+
+**License transition:** versions made available before the change to Apache 2.0 were declared under the MIT License, and copies obtained under those terms remain available under them.
+
+**Third-party:** the `.claude/skills/openspec-*` skills are generated by [OpenSpec](https://github.com/Fission-AI/OpenSpec) and keep their own MIT license.
+
+Contributions are welcome under the Apache License 2.0 with a DCO sign-off; see [CONTRIBUTING.md](https://github.com/abeljumanuel/axiom-meridian-project/blob/main/CONTRIBUTING.md).
