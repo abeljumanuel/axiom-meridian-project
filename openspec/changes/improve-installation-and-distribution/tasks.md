@@ -172,7 +172,7 @@
   / `uvx --refresh ...`), since `uvx` keeps serving the cached version.
   **Verify**: each documented client config is syntactically valid for
   that client (validated against each client's own config schema/docs).
-- [ ] 3.4b Write `.github/workflows/ci.yml` per design.md's D7: ruff +
+- [x] 3.4b Write `.github/workflows/ci.yml` per design.md's D7: ruff +
   pytest on Linux/macOS/Windows without the `rag` extra, one Linux job
   with `--extra rag`, plus the version-sync (5.5) and skill safety scan
   (4.3) scripts once they exist.
