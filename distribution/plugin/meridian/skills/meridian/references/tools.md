@@ -26,7 +26,7 @@ decides which tools can run (default `analyze`).
 | `check_feature_against_rules` | `feature_description`, `project_id` | Applicable rules/lessons in full + a planning check record |
 | `analyze_pr_feedback` | `feedback_text`, `pr_ref`, `project_id` | The rules that applied at audit time, for classifying feedback |
 | `extract_rules_from_transcript` / `extract_lessons_from_transcript` | `text`, `project_id` | Clean text, scope chain, existing items for duplicate checks, template |
-| `create_pending_proposal` | `type` (`rule`/`lesson`/`update`), `proposed_text`, `suggested_scope_id`, `target_id?` (for `update`), `target_type?`, `suggested_attributes?`, `source_type?`, `source_ref?` | The new proposal id |
+| `create_pending_proposal` | `type` (`rule`/`lesson`/`update`), `proposed_text`, `suggested_scope_id`, `target_id?` (for `update`), `target_type?`, `suggested_attributes?`, `source_type?`, `source_ref?`, `metadata?` (JSON object with the block fields other than the body) | The new proposal id |
 | `deprecate_rule` | `rule_id` (`RN-*` or `LL-*`), `reason`, `superseded_by?` | A pending deprecation proposal |
 
 ## Write (human reviewer actions — run only when asked)

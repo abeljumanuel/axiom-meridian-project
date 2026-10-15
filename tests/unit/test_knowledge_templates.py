@@ -442,3 +442,17 @@ def test_extraction_lesson_template_equals_knowledge_templates_lesson_template()
     from meridian.tools.extraction import _LESSON_TEMPLATE
 
     assert _LESSON_TEMPLATE == knowledge_templates.LESSON_TEMPLATE
+
+
+@pytest.mark.parametrize(
+    "builder_name", ["build_rule_template_response", "build_lesson_template_response"]
+)
+def test_template_usage_describes_body_plus_metadata_contract(conn, builder_name) -> None:
+    """fix-proposal-metadata-and-scope-file: the usage must not tell clients to
+    send the rendered block as proposed_text (approval builds the block)."""
+    from meridian.tools import knowledge_templates
+
+    usage = getattr(knowledge_templates, builder_name)(None, conn)["usage"]
+    assert "create_pending_proposal" in usage
+    assert "metadata" in usage
+    assert "rendered markdown" not in usage

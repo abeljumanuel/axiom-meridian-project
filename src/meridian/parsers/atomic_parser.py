@@ -71,6 +71,93 @@ def _extract_block_bytes(
     return block_text, byte_start, byte_length, offset_warning
 
 
+# A line that opens an atomic block (`## RN-…` / `## LL-…`), including the
+# templates' `RN-XXX-NNN` placeholder — broader than _BLOCK_HEADER_RE on
+# purpose: it detects block markup inside a proposal body, not real codes.
+BLOCK_HEADER_LINE_RE = re.compile(r"^## (RN|LL)-\S*", re.MULTILINE)
+
+# Block label → proposal metadata key (the keys _build_rule_atomic_block /
+# _build_lesson_atomic_block read). The body labels are handled separately.
+RULE_FIELD_KEYS = {
+    "Categoría": "category",
+    "Severidad": "severity",
+    "Aplica a": "applies_to",
+    "Tags": "tags",
+    "Fuente": "source",
+}
+LESSON_FIELD_KEYS = {
+    "Proyecto": "project",
+    "Fecha": "date_occurred",
+    "Severidad del impacto": "severity",
+    "Área afectada": "area_affected",
+    "Tags": "tags",
+    "Impacto": "impact",
+    "Causa raíz": "root_cause",
+    "Resolución": "resolution",
+    "Originó regla": "originated_rule_id",
+}
+_BODY_LABELS = {"rule": "Regla", "lesson": "Qué pasó"}
+_LABEL_LINE_RE = re.compile(r"\*\*([^*]+):\*\*\s*(.*)")
+
+
+@dataclass
+class BlockFields:
+    """One atomic block split into the parts a proposal stores."""
+
+    header_kind: str | None  # "rule" / "lesson" from the header line, if any
+    scope: str | None
+    body: str | None  # None when the block has no body label at all
+    metadata: dict
+
+
+def parse_block_text(text: str, kind: str) -> BlockFields:
+    """Split a single rendered atomic block (*kind* ``"rule"`` or ``"lesson"``)
+    into scope, body and proposal metadata.
+
+    Labels are the same ones the indexer reads; a field runs until the next
+    known label, so a multi-line body is kept whole. Empty values are left
+    out of ``metadata`` (so builder defaults or inherited values apply),
+    except ``tags``, where an empty field means "no tags".
+    """
+    field_keys = RULE_FIELD_KEYS if kind == "rule" else LESSON_FIELD_KEYS
+    body_label = _BODY_LABELS[kind]
+    known = set(field_keys) | {"Scope", body_label}
+
+    lines = text.strip("\n").split("\n")
+    header_kind = None
+    header = BLOCK_HEADER_LINE_RE.match(lines[0]) if lines else None
+    if header:
+        header_kind = "rule" if header.group(1) == "RN" else "lesson"
+        lines = lines[1:]
+
+    raw: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in lines:
+        match = _LABEL_LINE_RE.match(line)
+        if match and match.group(1).strip() in known:
+            current = match.group(1).strip()
+            raw[current] = [match.group(2).strip()]
+        elif current is not None:
+            raw[current].append(line)
+    values = {label: "\n".join(parts).strip() for label, parts in raw.items()}
+
+    metadata: dict = {}
+    for label, key in field_keys.items():
+        if label not in values:
+            continue
+        if key == "tags":
+            metadata["tags"] = [t.strip() for t in values[label].split(",") if t.strip()]
+        elif values[label]:
+            metadata[key] = values[label]
+
+    return BlockFields(
+        header_kind=header_kind,
+        scope=values.get("Scope") or None,
+        body=values.get(body_label),
+        metadata=metadata,
+    )
+
+
 def _parse_block_fields(block_text: str) -> dict:
     """Tokenize a block's ``**Field:** value`` lines into their known fields.
 
