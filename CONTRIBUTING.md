@@ -127,8 +127,11 @@ sections; these are the rules behind them.
    `uv run pytest`: `468 passed`.
 6. **Say what you did not verify.** An honest "Not verified" section is more
    useful to the reviewer than a clean-looking one.
-7. **Keep docs in step:** update `CHANGELOG.md` (Unreleased), the affected
-   `CLAUDE.md`/ADR text and the ticket status in the same pull request.
+7. **Keep docs in step:** update `CHANGELOG.md` (Unreleased) and the affected
+   `CLAUDE.md`/ADR text in the same pull request, and leave the ticket at
+   `In review`. Archiving the OpenSpec change and moving the ticket to `Done`
+   are done when the release is closed, in one `chore/close-X.Y.Z-release`
+   pull request for everything that shipped (as in #5), not per ticket.
 
 ## Pull request size
 
