@@ -13,6 +13,7 @@ from pathlib import Path
 
 from meridian.db.connection import get_connection, initialize_db
 from meridian.utils.id_generator import (
+    bump_code_counter,
     next_lesson_code,
     next_rule_code,
     next_sequential_id,
@@ -146,5 +147,42 @@ def test_seed_id_counters_never_lowers_an_advanced_counter():
 
         result = next_rule_code(conn, "global-java")
         assert result == "RN-JAVA-004"
+    finally:
+        conn.close()
+
+
+def _counter(conn, name):
+    row = conn.execute("SELECT next FROM id_counters WHERE name = ?", (name,)).fetchone()
+    return row[0] if row else None
+
+
+def test_bump_code_counter_creates_and_raises_the_counter():
+    conn = _temp_db()
+    try:
+        bump_code_counter(conn, "RN-GLOBAL-007")
+        assert _counter(conn, "RN-GLOBAL") == 8
+        bump_code_counter(conn, "RN-GLOBAL-010")
+        assert _counter(conn, "RN-GLOBAL") == 11
+        assert next_rule_code(conn, "global") == "RN-GLOBAL-011"
+    finally:
+        conn.close()
+
+
+def test_bump_code_counter_never_lowers_a_higher_counter():
+    conn = _temp_db()
+    try:
+        bump_code_counter(conn, "LL-JAVA-050")
+        bump_code_counter(conn, "LL-JAVA-007")
+        assert _counter(conn, "LL-JAVA") == 51
+    finally:
+        conn.close()
+
+
+def test_bump_code_counter_ignores_malformed_codes():
+    conn = _temp_db()
+    try:
+        for code in ("RN-GLOBAL", "RN-GLOBAL-abc", "RN-A-B-001", "garbage", ""):
+            bump_code_counter(conn, code)
+        assert conn.execute("SELECT COUNT(*) FROM id_counters").fetchone()[0] == 0
     finally:
         conn.close()

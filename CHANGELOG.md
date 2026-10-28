@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A text-only `update` proposal no longer resets the target's category,
   severity, applies-to and source, or clears its tags; fields the proposal
   doesn't set keep their current values in the file and the index.
+- Indexing rules or lessons that carry hand-written codes (for example
+  `RN-GLOBAL-007`) no longer makes a running server reissue those codes:
+  the next `approve_proposal` in that scope used to fail with
+  `UNIQUE constraint failed: rules.code` (or `lessons.code`) until the server
+  was restarted. Indexing now keeps the scope's ID counter ahead of every
+  code it creates.
 
 ## [0.1.0] - 2026-10-15
 
