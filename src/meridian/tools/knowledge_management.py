@@ -21,6 +21,7 @@ from meridian.parsers.legacy_parser import parse as legacy_parse
 from meridian.rag import embedder, vector_store
 from meridian.rag.availability import RagNotInstalledError, rag_installed
 from meridian.utils.id_generator import (
+    bump_code_counter,
     next_lesson_code,
     next_rule_code,
     next_sequential_id,
@@ -233,6 +234,7 @@ def _insert_indexed_rule(conn: sqlite3.Connection, block, scope_id: str, clean_t
         (hist_id, rule_id, "CREATED", clean_text, resolve_actor()),
     )
     sync_tags(conn, "rule_tags", "rule_id", rule_id, block.tags)
+    bump_code_counter(conn, block.code)
 
 
 def _update_indexed_rule(
@@ -426,6 +428,7 @@ def _insert_indexed_lesson(
         (hist_id, lesson_id, "CREATED", resolve_actor()),
     )
     sync_tags(conn, "lesson_tags", "lesson_id", lesson_id, block.tags)
+    bump_code_counter(conn, block.code)
 
 
 def _update_indexed_lesson(

@@ -115,6 +115,34 @@ def _max_code_suffix_by_segment(
     return maxima
 
 
+def _raise_counter(conn: sqlite3.Connection, name: str, minimum: int) -> None:
+    """Make counter `name` at least `minimum`; never lowers an advanced one."""
+    conn.execute(
+        "INSERT INTO id_counters (name, next) VALUES (?, ?) "
+        "ON CONFLICT(name) DO UPDATE SET next = MAX(next, excluded.next)",
+        (name, minimum),
+    )
+
+
+def bump_code_counter(conn: sqlite3.Connection, code: str) -> None:
+    """Keep `id_counters` ahead of a rule/lesson code written outside the generators.
+
+    Call it in the same transaction as any INSERT into `rules`/`lessons` that
+    uses a code not allocated by `next_rule_code`/`next_lesson_code` (e.g. a
+    hand-written code found while indexing), or the next allocation for that
+    segment reissues it. Codes not shaped `PREFIX-SEGMENT-digits` are ignored.
+    """
+    parts = code.split("-")
+    if len(parts) != 3:
+        return
+    prefix, segment, suffix = parts
+    try:
+        num = int(suffix)
+    except ValueError:
+        return
+    _raise_counter(conn, f"{prefix}-{segment}", num + 1)
+
+
 def seed_id_counters(conn: sqlite3.Connection) -> None:
     """Seed id_counters from the real numeric maxima already present.
 
@@ -127,18 +155,10 @@ def seed_id_counters(conn: sqlite3.Connection) -> None:
     for table, column, prefix in _GENERIC_ID_TABLES:
         max_num = _max_generic_suffix(conn, table, column, prefix)
         if max_num:
-            conn.execute(
-                "INSERT INTO id_counters (name, next) VALUES (?, ?) "
-                "ON CONFLICT(name) DO UPDATE SET next = MAX(next, excluded.next)",
-                (prefix, max_num + 1),
-            )
+            _raise_counter(conn, prefix, max_num + 1)
 
     for table, column, code_prefix in _CODE_TABLES:
         for segment, max_num in _max_code_suffix_by_segment(
             conn, table, column, code_prefix
         ).items():
-            conn.execute(
-                "INSERT INTO id_counters (name, next) VALUES (?, ?) "
-                "ON CONFLICT(name) DO UPDATE SET next = MAX(next, excluded.next)",
-                (f"{code_prefix}-{segment}", max_num + 1),
-            )
+            _raise_counter(conn, f"{code_prefix}-{segment}", max_num + 1)

@@ -716,3 +716,57 @@ def test_approve_refuses_a_body_with_a_nested_block_header(tmp_kb):
     assert conn.execute(
         "SELECT status FROM pending_proposals WHERE id = 'prop-0001'"
     ).fetchone() == ("pending",)
+
+
+_HAND_RULE = (
+    "## {code}\n\n**Scope:** global\n**Categoría:** security\n**Severidad:** high\n"
+    "**Aplica a:** all\n**Tags:** manual\n**Fuente:** hand\n\n"
+    "**Regla:** Hand written rule {code}.\n\n---\n"
+)
+_HAND_LESSON = (
+    "## {code}\n\n**Scope:** global\n**Severidad:** high\n**Tags:** manual\n\n"
+    "**Qué pasó:** Hand written lesson {code}.\n\n**Impacto:** x\n\n"
+    "**Causa raíz:** y\n\n**Resolución:** z\n\n---\n"
+)
+
+
+def _propose(conn, kind):
+    metadata = (
+        {"category": "security", "severity": "critical", "tags": ["logs"]}
+        if kind == "rule"
+        else {"severity": "high", "tags": ["logs"]}
+    )
+    prop_id = create_pending_proposal(conn, kind, f"Proposal text {kind}.", "global", metadata=metadata)
+    conn.commit()
+    return prop_id
+
+
+def test_approve_after_indexing_hand_written_rule_code_does_not_collide(tmp_kb):
+    kb_path, conn = tmp_kb
+    md = kb_path / "hand.md"
+    md.write_text(_HAND_RULE.format(code="RN-GLOBAL-001"), encoding="utf-8")
+    assert knowledge_management.index_rules_from_markdown(str(md), "global")["created"] == 1
+
+    # Same process, no restart in between: only the index step may keep
+    # id_counters ahead of the hand-written code.
+    assert approve_proposal(_propose(conn, "rule"))["code"] == "RN-GLOBAL-002"
+
+
+def test_approve_after_indexing_high_hand_written_rule_code_never_collides(tmp_kb):
+    kb_path, conn = tmp_kb
+    md = kb_path / "hand.md"
+    md.write_text(_HAND_RULE.format(code="RN-GLOBAL-007"), encoding="utf-8")
+    knowledge_management.index_rules_from_markdown(str(md), "global")
+
+    codes = [approve_proposal(_propose(conn, "rule"))["code"] for _ in range(8)]
+
+    assert codes == [f"RN-GLOBAL-{n:03d}" for n in range(8, 16)]
+
+
+def test_approve_after_indexing_hand_written_lesson_code_does_not_collide(tmp_kb):
+    kb_path, conn = tmp_kb
+    md = kb_path / "hand-lessons.md"
+    md.write_text(_HAND_LESSON.format(code="LL-GLOBAL-001"), encoding="utf-8")
+    assert knowledge_management.index_lessons_from_markdown(str(md), "global")["created"] == 1
+
+    assert approve_proposal(_propose(conn, "lesson"))["code"] == "LL-GLOBAL-002"

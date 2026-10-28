@@ -99,6 +99,12 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 - **Description:** The documented proposal flow (template usage: rendered block as `proposed_text`) produced a nested, mis-filed block on approval, because `approve_proposal` builds the block from the body plus `metadata`, which the MCP tool couldn't set. Approving the first rule or lesson of a scope with no `.md` file failed, and a text-only `update` reset the target's other fields. Found while registering `RN-AXIOM-001`. Delivered in PR #6: `create_pending_proposal` takes `metadata` and normalizes a rendered block, `approve_proposal` rejects a nested header and creates a missing scope file, and `update` approvals inherit omitted fields.
 - **OpenSpec change:** [`fix-proposal-metadata-and-scope-file`](../openspec/changes/archive/2026-10-15-fix-proposal-metadata-and-scope-file/)
 
+### TICKET-021 — Indexing keeps `id_counters` ahead of hand-written codes
+- **Type:** Bug fix | **Priority:** Must | **Status:** In review
+- **Description:** Indexing atomic `.md` blocks with hand-written codes (e.g. `RN-GLOBAL-007`) inserted rows without advancing `id_counters`, so on a running server the next `approve_proposal` in that scope reissued an occupied code and failed with `UNIQUE constraint failed: rules.code` (or `lessons.code`); with a high manual code every approval from the matching number on failed, because each failure rolled back its own increment. A server restart repaired it (`initialize_db()` reseeds the counters), but a long-running server stayed broken. The atomic indexer now calls `bump_code_counter` in the same transaction as each created row.
+- **Evidence:** Reproduced in a single process against a temporary knowledge base (index `RN-GLOBAL-001` then approve; index `RN-GLOBAL-007` then approve 8 in a row; the same with `LL-GLOBAL-001`), measuring `id_counters` after each step; all three failed before the fix and pass after it.
+- **OpenSpec change:** [`fix-index-advances-id-counters`](../openspec/changes/fix-index-advances-id-counters/)
+
 ### Delivered without a ticket
 
 These OpenSpec changes were completed and archived with the 0.1.0 release but never had a ticket of their own; they're listed here so the record is complete.
