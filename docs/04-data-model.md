@@ -174,7 +174,7 @@ erDiagram
 | `lessons` | Incidents/lessons learned (`LL-<TECH>-NNN`) with structured fields (`what_happened`, `impact`, `root_cause`, `resolution`). |
 | `lesson_history` | Append-only audit trail of lesson changes. |
 | `lesson_tags` | Normalized tags for lessons, mirroring `rule_tags`. |
-| `rule_lesson_links` | Bidirectional links between a rule and the lesson(s) that originated or reference it. |
+| `rule_lesson_links` | Links between a rule and a lesson. PK `(rule_id, lesson_id)`; `link_type` is a free-form label. Currently read-only: see *Rule ↔ lesson relationship*. |
 | `project_scope_resolution` | Cache of the resolved scope chain for a project, to avoid recomputation on every query. |
 | `pr_audits` | Record of every `audit_pr()` call: which rules were evaluated, which violations were found, against which diff. |
 | `planning_checks` | Record of every `check_feature_against_rules()` call, for pre-implementation conflict detection. |
@@ -255,3 +255,23 @@ Human-readable IDs (`RN-{TECH}-NNN`, `LL-{TECH}-NNN`, generic `prefix-NNNN`) are
 - [System Architecture](03-system-architecture.md)
 - [User Stories](05-user-stories.md)
 - [Work Tickets](06-work-tickets.md)
+
+## Allowed values
+
+SQLite only enforces `status` on `rules`/`lessons` (`CHECK`); the other columns are validated by the application, so the values below are the ones the code accepts or writes.
+
+| Column | Values | Enforced by |
+|---|---|---|
+| `rules.severity`, `lessons.severity`, proposal `metadata.severity` | `low`, `medium`, `high`, `critical` | `_VALID_SEVERITIES` in `tools/extraction.py` (proposal metadata); not a DB constraint on `rules`/`lessons` |
+| `rules.status`, `lessons.status` | `active` (default), `deprecated` | `CHECK` constraint in `db/schema.sql` |
+| `pending_proposals.type` | `rule`, `lesson`, `update` | `create_pending_proposal` |
+| `pending_proposals.status` | `pending` (default), `approved`, `rejected` | application code (`approve_proposal`, `reject_proposal`); `edit_proposal` keeps `pending` |
+| `rule_history.change_type` | `CREATED`, `UPDATED`, `DEPRECATED`, `PROMOTED` | application code |
+| `lesson_history.change_type` | `CREATED`, `UPDATED`, `DEPRECATED` | application code |
+| `scopes.type` | `global`, `project` | seed data and `create_project` |
+| `access_log.result` | `success`, `denied`, `error` | `_security_pattern` in `server.py` |
+
+## Rule ↔ lesson relationship
+
+The schema models the relationship in three places: `lessons.originated_rule_id`, `rules.originated_lesson_id`, and the `rule_lesson_links` table. In the current implementation the **source of truth is the lesson's Markdown block**: its `**Originó regla:**` field is parsed into `lessons.originated_rule_id`, which is the only direction that gets populated. `rules.originated_lesson_id` has no writer in `src/`, and `rule_lesson_links` is only *read* (by `get_rule_context`/`get_rule_timeline`); nothing in `src/` inserts into it yet. Following the Markdown-first rule, any future write path must derive links from block fields rather than invent them in SQLite. Consolidating the two unused representations is tracked as a documentation-vs-implementation gap, not a behavior change.
+
