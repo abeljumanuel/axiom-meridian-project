@@ -617,3 +617,65 @@ def test_partial_failure_keeps_earlier_successful_migrations_committed():
             assert "canary" in tables
         finally:
             conn.close()
+
+
+def test_legacy_database_gets_rule_lesson_links_dropped():
+    """Migration 007: the unused rule_lesson_links table is dropped from a
+    database that has it, and nothing else is touched (TICKET-022)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        kb_path = Path(tmpdir)
+        _kb_dirs(kb_path)
+        db_path = kb_path / "legacy.db"
+
+        # Build a database as it stood at migration 006: initialize it, then
+        # put the old table back and rewind user_version.
+        initialize_db(db_path)
+        old_conn = sqlite3.connect(str(db_path))
+        old_conn.execute(
+            "CREATE TABLE rule_lesson_links (rule_id TEXT NOT NULL, "
+            "lesson_id TEXT NOT NULL, link_type TEXT NOT NULL, "
+            "PRIMARY KEY (rule_id, lesson_id))"
+        )
+        old_conn.execute(
+            "INSERT INTO rules (id, scope_id, code, text, category, severity) "
+            "VALUES ('RN-X-001', 'global', 'RN-X-001', 't', 'quality', 'low')"
+        )
+        old_conn.execute("PRAGMA user_version = 6")
+        old_conn.commit()
+        old_conn.close()
+
+        initialize_db(db_path)
+
+        conn = get_connection(db_path)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }
+            assert "rule_lesson_links" not in tables
+            assert conn.execute("SELECT code FROM rules WHERE id = 'RN-X-001'").fetchone() == (
+                "RN-X-001",
+            )
+            assert conn.execute("PRAGMA user_version").fetchone()[0] >= 7
+        finally:
+            conn.close()
+
+
+def test_fresh_database_has_no_rule_lesson_links_table():
+    """A fresh db init (schema.sql path) matches what migration 007 gives an
+    existing database: no rule_lesson_links table."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        kb_path = Path(tmpdir)
+        _kb_dirs(kb_path)
+        db_path = kb_path / "fresh.db"
+        initialize_db(db_path)
+
+        conn = get_connection(db_path)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }
+            assert "rule_lesson_links" not in tables
+        finally:
+            conn.close()

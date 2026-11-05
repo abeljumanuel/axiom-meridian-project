@@ -105,6 +105,12 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 - **Evidence:** Reproduced in a single process against a temporary knowledge base (index `RN-GLOBAL-001` then approve; index `RN-GLOBAL-007` then approve 8 in a row; the same with `LL-GLOBAL-001`), measuring `id_counters` after each step; all three failed before the fix and pass after it.
 - **OpenSpec change:** [`fix-index-advances-id-counters`](../openspec/changes/fix-index-advances-id-counters/)
 
+### TICKET-022 — Remove the unused rule ↔ lesson links
+- **Type:** Refactor | **Priority:** Should | **Status:** In review
+- **Description:** `rule_lesson_links` (and the `rules.originated_lesson_id` / `lessons.originated_rule_id` columns) were never written by any code path, so `get_rule_context` (`linked_lessons`) and `get_rule_timeline` (`linked_lessons_summary`) always returned an empty list. Migration 007 drops the table and both response fields are removed (**BREAKING**, marked in the CHANGELOG). The two columns stay in the schema, unused: SQLite cannot drop a foreign-key column without rebuilding `rules`/`lessons`, which the project avoids for existing knowledge bases (ADR-007: additive migrations only). The relationship remains in the lesson's `**Originó regla:**` Markdown field.
+- **Evidence:** `grep` over `src/` shows no `INSERT` into `rule_lesson_links` and none of the `INSERT INTO rules`/`lessons` statements set the `originated_*` columns; the two readers are the only references to the table.
+- **OpenSpec change:** none; no spec in `openspec/specs/` mentions the removed fields.
+
 ### Delivered without a ticket
 
 These OpenSpec changes were completed and archived with the 0.1.0 release but never had a ticket of their own; they're listed here so the record is complete.

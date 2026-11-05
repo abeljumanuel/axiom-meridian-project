@@ -15,7 +15,6 @@ EXPECTED_TABLES = [
     "rule_history",
     "lesson_history",
     "lessons",
-    "rule_lesson_links",
     "project_scope_resolution",
     "pr_audits",
     "planning_checks",

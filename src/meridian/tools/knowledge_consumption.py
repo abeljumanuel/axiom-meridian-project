@@ -388,27 +388,12 @@ def get_rule_timeline(
             for r in cursor.fetchall()
         ]
 
-        cursor = conn.execute(
-            """
-            SELECT l.code, l.area_affected, l.severity
-            FROM lessons l
-            JOIN rule_lesson_links rll ON l.id = rll.lesson_id
-            WHERE rll.rule_id = ?
-            """,
-            (rule_id,),
-        )
-        linked_lessons_summary = [
-            dict(zip(["code", "area", "severity"], r))
-            for r in cursor.fetchall()
-        ]
-
         return {
             "rule_code": code,
             "scope": scope_id,
             "severity": severity,
             "category": category,
             "history_events": history_events,
-            "linked_lessons_summary": linked_lessons_summary,
         }
     finally:
         if close_on_exit:
@@ -419,7 +404,7 @@ def get_rule_context(
     rule_id: str,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    """Return full rule text + history + linked lessons."""
+    """Return full rule text + history."""
     close_on_exit = False
     if conn is None:
         conn = get_connection(get_db_path())
@@ -445,28 +430,9 @@ def get_rule_context(
             dict(zip(hist_columns, r)) for r in cursor.fetchall()
         ]
 
-        cursor = conn.execute(
-            """
-            SELECT l.* FROM lessons l
-            JOIN rule_lesson_links rll ON l.id = rll.lesson_id
-            WHERE rll.rule_id = ?
-            """,
-            (rule_id,),
-        )
-        lesson_columns = [d[0] for d in cursor.description]
-        lessons = [
-            dict(zip(lesson_columns, lesson_row))
-            for lesson_row in cursor.fetchall()
-        ]
-        for lesson, pos_lesson in zip(
-            lessons, _resolve_full_text(lessons, conn, "what_happened")
-        ):
-            lesson.update(pos_lesson)
-
         return {
             "rule": rule,
             "history": history,
-            "linked_lessons": lessons,
         }
     finally:
         if close_on_exit:

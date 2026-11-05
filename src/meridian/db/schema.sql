@@ -98,14 +98,6 @@ CREATE TABLE lessons (
   updated_at        TEXT DEFAULT (datetime('now'))
 );
 
--- Vínculos bidireccionales regla ↔ lección
-CREATE TABLE rule_lesson_links (
-  rule_id   TEXT NOT NULL REFERENCES rules(id),
-  lesson_id TEXT NOT NULL REFERENCES lessons(id),
-  link_type TEXT NOT NULL,
-  PRIMARY KEY (rule_id, lesson_id)
-);
-
 -- Cache de resolución de scopes
 CREATE TABLE project_scope_resolution (
   project_id      TEXT PRIMARY KEY,
