@@ -246,6 +246,33 @@ The three tickets selected for the final delivery — **TICKET-014** (backend), 
   - Scope creep: the dashboard is the easiest ticket to grow. The spec's four requirements are the limit; anything else goes to a new ticket.
 - **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
 
+### TICKET-028 — Post-PR retrospective: candidate rules and lessons for human review
+- **Type:** Feature (workflow) | **Priority:** Could | **Status:** Backlog
+- **Description:** Today, turning what a pull request taught the team into a rule or lesson is manual and easy to forget: `RN-AXIOM-008` came out of TICKET-021 only because someone noticed. Add a retrospective step that an AI agent runs when a PR is closed. It gathers the evidence of that PR (description, commits, failed and flaky checks, review comments, the audit from TICKET-026), calls the existing `extract_rules_from_transcript` / `extract_lessons_from_transcript` tools, and leaves the candidates as `pending_proposals` with the PR as provenance. A person decides with `approve_proposal` or `reject_proposal`. No server tool is added: the extraction tools already return the context, duplicates and templates, and the analysis belongs to the client LLM, as in `audit_pr`. The change is a skill (and its documentation), plus an optional deterministic evidence collector.
+- **Precedent:** the first manual run, on 2026-11-09, produced five proposals from TICKET-022 and TICKET-027 (`prop-0001` to `prop-0005`); all five were approved (`LL-AXIOM-001`, `LL-AXIOM-002`, `RN-PYTHON-001`, `RN-GLOBAL-036`, `RN-AXIOM-009`). It also surfaced one overlap to judge by hand (`prop-0004` against `RN-GLOBAL-034`).
+- **Steps:**
+  1. Define the evidence checklist for a PR: description and linked ticket, commit messages, checks that failed or were re-run, review comments, the `audit_pr` summary, and the diff stats. Write it as a section of the distributable skill (`distribution/skill/meridian/`) and mirror it into the plugin copy, which `scripts/check_versions.py` requires to be identical.
+  2. Write the retrospective instructions: assemble the evidence as a transcript, call both extraction tools, compare each candidate with `existing_rules` / `existing_lessons`, and call `create_pending_proposal` with `source_type="manual"` and `source_ref` set to the PR link. State that the agent must never call `approve_proposal`.
+  3. Set the quality limits in the instructions: at most five candidates per PR, each citing its evidence; an empty result is valid and expected for routine PRs.
+  4. Optional: add a deterministic collector (`meridian retro collect --pr N`) that prints the evidence as text using `gh`, so the same input can be reproduced and tested without an LLM.
+  5. Run it by hand on three closed PRs (#12, #15, #16) and record how many candidates were useful, duplicated or noise.
+  6. Document the flow in `docs/installation.md` or the README, and in `CONTRIBUTING.md` as an optional step when closing a PR.
+- **Acceptance criteria:**
+  - The skill contains the retrospective instructions and passes `scripts/check_skill_safety.py`, `scripts/package_skill.py` and the version/copy check in CI.
+  - Following the instructions on a PR creates only `pending_proposals`; no `rules`, `lessons` or `.md` file changes until a person approves.
+  - The flow works with `MERIDIAN_ACCESS_LEVEL=analyze`, so an agent without `write` access cannot approve anything by construction.
+  - Every proposal created has `source_ref` pointing to the PR and cites its evidence in the text.
+  - A candidate that matches an existing rule or lesson is not created as a duplicate; it is reported to the person with the matching code.
+  - Running it on a PR with no lessons yields zero proposals and says so.
+  - On the three PRs of step 5, at least half of the candidates are judged useful by the maintainer; the rest of the numbers are recorded in the PR.
+- **Risks:**
+  - Noise: an LLM asked for lessons will invent them. Mitigation: evidence required per candidate, a cap of five, and an explicit "none" outcome. The step-5 measurement is the check.
+  - Rule inflation: every PR adding a rule makes the rule set long and contradictory. Mitigation: duplicate comparison, and the person is the only approver.
+  - Unreproducible output: the same PR may yield different candidates on different runs. Mitigation: the optional collector makes the input fixed, and the output is only a proposal.
+  - Sensitive text: PR comments can contain secrets or names. Mitigation: the extraction tools already strip private tags; the instructions tell the agent to leave tokens and personal data out of the evidence.
+  - Skill drift: the plugin copy and the skill copy must stay identical, or CI fails.
+- **OpenSpec change:** [`add-post-pr-retrospective`](../openspec/changes/add-post-pr-retrospective/)
+
 ## Related Documents
 
 - [Project Charter](01-project-charter.md)
