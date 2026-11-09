@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   impact, root cause, resolution, originating rule). Unknown keys and invalid
   severities are rejected.
 
+### Removed
+
+- **BREAKING:** `get_rule_context` no longer returns `linked_lessons` and
+  `get_rule_timeline` no longer returns `linked_lessons_summary`. Both read
+  the `rule_lesson_links` table, which nothing ever wrote, so they always
+  returned an empty list. The table is dropped by migration 007 (existing
+  rules, lessons, history and `.md` files are untouched). The relationship
+  lives only in a lesson's `**Originó regla:**` Markdown field.
+
 ### Fixed
 
 - Following the template instructions (the whole rendered block as

@@ -678,11 +678,10 @@ def query_lessons(
 
 @mcp.tool()
 def get_rule_context(rule_id: Annotated[str, Field(description="The RN-* id of the rule.")]) -> str:
-    """Return a rule's full text, its complete rule_history, and any lessons
-    linked to it.
+    """Return a rule's full text and its complete rule_history.
 
     Access level: read.
-    Returns: JSON with `rule`, `history`, and `linked_lessons`.
+    Returns: JSON with `rule` and `history`.
     """
     tool_name = "get_rule_context"
     params = {"rule_id": rule_id}
@@ -696,12 +695,12 @@ def get_rule_context(rule_id: Annotated[str, Field(description="The RN-* id of t
 
 @mcp.tool()
 def get_rule_timeline(rule_id: Annotated[str, Field(description="The RN-* id of the rule.")]) -> str:
-    """Return a rule's chronological history and linked-lesson summary
-    without loading full text — lighter than get_rule_context.
+    """Return a rule's chronological history without loading full text —
+    lighter than get_rule_context.
 
     Access level: read.
-    Returns: JSON with rule_code, scope, severity, category, history_events,
-    and linked_lessons_summary.
+    Returns: JSON with rule_code, scope, severity, category and
+    history_events.
     """
     tool_name = "get_rule_timeline"
     params = {"rule_id": rule_id}

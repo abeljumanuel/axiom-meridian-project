@@ -353,6 +353,7 @@ def test_additive_output_get_rule_context(tmp_kb):
 
     context = get_rule_context(result["code"], conn=conn)
     assert len(context["history"]) == 1
+    assert "linked_lessons" not in context
     event = context["history"][0]
     assert event["actor_id"] == getpass.getuser()
     assert event["change_type"] == "CREATED"
@@ -400,4 +401,5 @@ def test_get_rule_timeline_unaffected_by_actor_identity(tmp_kb):
 
     timeline = get_rule_timeline("RN-JAVA-001")
     assert len(timeline["history_events"]) == 1
+    assert "linked_lessons_summary" not in timeline
     assert "actor_id" not in timeline["history_events"][0]
