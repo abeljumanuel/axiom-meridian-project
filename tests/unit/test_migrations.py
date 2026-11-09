@@ -314,6 +314,7 @@ def test_failing_migration_rolls_back_and_leaves_a_backup():
         conn = get_connection(db_path)
         try:
             version_before = conn.execute("PRAGMA user_version").fetchone()[0]
+            backups_before = set(kb_path.glob("test.db.bak-*"))
 
             migrations_dir = kb_path / "fake_migrations"
             _write_migration(
@@ -329,8 +330,28 @@ def test_failing_migration_rolls_back_and_leaves_a_backup():
             version_after = conn.execute("PRAGMA user_version").fetchone()[0]
             assert version_after == version_before  # rolled back, not advanced
 
-            backups = list(kb_path.glob("test.db.bak-*"))
-            assert len(backups) == 1
+            # initialize_db already took its own backup; the failed run must
+            # add exactly one more, never overwrite the earlier one.
+            new_backups = set(kb_path.glob("test.db.bak-*")) - backups_before
+            assert len(new_backups) == 1
+            assert backups_before <= set(kb_path.glob("test.db.bak-*"))
+        finally:
+            conn.close()
+
+
+def test_backups_taken_back_to_back_never_share_a_name():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        kb_path = Path(tmpdir)
+        db_path = kb_path / "test.db"
+        conn = get_connection(db_path)
+        try:
+            migrations_dir = kb_path / "fake_migrations"
+            _write_migration(migrations_dir, 101, "first", "CREATE TABLE t1 (x INTEGER);")
+            apply_pending_migrations(conn, db_path, migrations_dir=migrations_dir)
+            _write_migration(migrations_dir, 102, "second", "CREATE TABLE t2 (x INTEGER);")
+            apply_pending_migrations(conn, db_path, migrations_dir=migrations_dir)
+
+            assert len(list(kb_path.glob("test.db.bak-*"))) == 2
         finally:
             conn.close()
 

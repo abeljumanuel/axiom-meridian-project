@@ -141,8 +141,10 @@ def apply_pending_migrations(
     if not pending:
         return []
 
+    # Microseconds keep two backups taken in the same second from sharing a
+    # name, which would let the second silently overwrite the first.
     backup_path = db_path.with_name(
-        f"{db_path.name}.bak-{datetime.now():%Y%m%d-%H%M%S}"
+        f"{db_path.name}.bak-{datetime.now():%Y%m%d-%H%M%S-%f}"
     )
     shutil.copy2(db_path, backup_path)
 
