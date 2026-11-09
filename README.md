@@ -435,7 +435,6 @@ erDiagram
 | `lessons` | Incidents/lessons (`LL-<TECH>-NNN`) with structured fields (`what_happened`, `impact`, `root_cause`, `resolution`). FK `scope_id`, `originated_rule_id`. UK `code`. |
 | `lesson_history` | Append-only audit trail of lesson changes. |
 | `lesson_tags` | Normalized tags for lessons, mirroring `rule_tags`. |
-| `rule_lesson_links` | Bidirectional links between a rule and the lesson(s) that originated or reference it. PK `(rule_id, lesson_id)`; `link_type` is a free-form label. See *Rule ↔ lesson relationship* below. |
 | `project_scope_resolution` | Cache of the resolved scope chain for a project. PK `project_id`. |
 | `pr_audits` | Record of every `audit_pr()` call: rules evaluated, violations found, diff hash. |
 | `planning_checks` | Record of every `check_feature_against_rules()` call. |
@@ -461,7 +460,9 @@ SQLite only enforces `status` on `rules`/`lessons` (`CHECK`); the other columns 
 
 #### Rule ↔ lesson relationship
 
-The schema models the relationship in three places: `lessons.originated_rule_id`, `rules.originated_lesson_id`, and the `rule_lesson_links` table. In the current implementation **none of the three is ever written**: no `INSERT` into `rules`, `lessons` or `rule_lesson_links` sets them. The only place the relationship exists is the lesson's Markdown block, in its `**Originó regla:**` field, which the atomic parser reads (`atomic_parser.LESSON_FIELD_KEYS`) and the block builder writes, but which is never copied into SQLite. As a consequence, `get_rule_context` (`linked_lessons`) and `get_rule_timeline` (`linked_lessons_summary`) read `rule_lesson_links` and always return an empty list. Following the Markdown-first rule, the Markdown field is the source of truth; removing the unused SQLite representations is proposed as a separate change.
+The relationship between a rule and the lesson that originated it lives **only in the lesson's Markdown block**, in its `**Originó regla:**` field, which the atomic parser reads (`atomic_parser.LESSON_FIELD_KEYS`) and the block builder writes. Following the Markdown-first rule, that field is the source of truth; it is not copied into SQLite.
+
+The `rule_lesson_links` table was never written by any code path, so it was removed in TICKET-022 (migration `007_drop_rule_lesson_links.sql`). `get_rule_context` no longer returns `linked_lessons` and `get_rule_timeline` no longer returns `linked_lessons_summary`; both always returned an empty list before. The columns `lessons.originated_rule_id` and `rules.originated_lesson_id` still exist but are inert (nothing writes or reads them): SQLite cannot drop foreign-key columns without rebuilding the table, so they were left in place. Existing rules, lessons and `.md` files are unaffected.
 
 Extended detail, including the atomic block format and the ID-generation strategy, in [docs/04-data-model.md](docs/04-data-model.md).
 
