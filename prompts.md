@@ -193,7 +193,7 @@ No existe un prompt dedicado exclusivamente a tests: la verificación se incorpo
 
 ### 4. Especificación de la API
 
-En Axiom Meridian, la "API" son los tools MCP expuestos (`query_rules`, `query_lessons`, `get_rule_context`, etc.), formalizados como specs OpenSpec en formato `Requirement`/`Scenario` (BDD).
+En Axiom Meridian, la "API" son los tools MCP expuestos (`query_rules`, `query_lessons`, `get_rule_context`, etc.). Su contrato (parámetros en JSON Schema, nivel de acceso y ejemplo de respuesta) está en la sección 4 del `README.md` para las tres herramientas principales (`query_rules`, `audit_pr`, `create_pending_proposal`/`approve_proposal`); el comportamiento que garantizan se especifica como specs OpenSpec en formato `Requirement`/`Scenario` (BDD) en `openspec/specs/`. Los prompts de esta sección produjeron esas specs.
 
 **Prompt 1:** *(creación inicial — fuente original: `02-openspec-baseline-specs.md`)*
 

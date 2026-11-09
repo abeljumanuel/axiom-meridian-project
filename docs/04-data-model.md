@@ -174,7 +174,6 @@ erDiagram
 | `lessons` | Incidents/lessons learned (`LL-<TECH>-NNN`) with structured fields (`what_happened`, `impact`, `root_cause`, `resolution`). |
 | `lesson_history` | Append-only audit trail of lesson changes. |
 | `lesson_tags` | Normalized tags for lessons, mirroring `rule_tags`. |
-| `rule_lesson_links` | Bidirectional links between a rule and the lesson(s) that originated or reference it. |
 | `project_scope_resolution` | Cache of the resolved scope chain for a project, to avoid recomputation on every query. |
 | `pr_audits` | Record of every `audit_pr()` call: which rules were evaluated, which violations were found, against which diff. |
 | `planning_checks` | Record of every `check_feature_against_rules()` call, for pre-implementation conflict detection. |
@@ -255,3 +254,25 @@ Human-readable IDs (`RN-{TECH}-NNN`, `LL-{TECH}-NNN`, generic `prefix-NNNN`) are
 - [System Architecture](03-system-architecture.md)
 - [User Stories](05-user-stories.md)
 - [Work Tickets](06-work-tickets.md)
+
+## Allowed values
+
+SQLite only enforces `status` on `rules`/`lessons` (`CHECK`); the other columns are validated by the application, so the values below are the ones the code accepts or writes.
+
+| Column | Values | Enforced by |
+|---|---|---|
+| `rules.severity`, `lessons.severity`, proposal `metadata.severity` | `low`, `medium`, `high`, `critical` | `_VALID_SEVERITIES` in `tools/extraction.py` (proposal metadata); not a DB constraint on `rules`/`lessons` |
+| `rules.status`, `lessons.status` | `active` (default), `deprecated` | `CHECK` constraint in `db/schema.sql` |
+| `pending_proposals.type` | `rule`, `lesson`, `update` | `create_pending_proposal` |
+| `pending_proposals.status` | `pending` (default), `approved`, `rejected` | application code (`approve_proposal`, `reject_proposal`); `edit_proposal` keeps `pending` |
+| `rule_history.change_type` | `CREATED`, `UPDATED`, `DEPRECATED`, `PROMOTED` | application code |
+| `lesson_history.change_type` | `CREATED`, `UPDATED`, `DEPRECATED` | application code |
+| `scopes.type` | `global`, `project` | seed data and `create_project` |
+| `access_log.result` | `success`, `denied`, `error` | `_security_pattern` in `server.py` |
+
+## Rule ↔ lesson relationship
+
+The relationship between a rule and the lesson that originated it lives **only in the lesson's Markdown block**, in its `**Originó regla:**` field, which the atomic parser reads (`atomic_parser.LESSON_FIELD_KEYS`) and the block builder writes. Following the Markdown-first rule, that field is the source of truth; it is not copied into SQLite.
+
+The `rule_lesson_links` table was never written by any code path, so it was removed in TICKET-022 (migration `007_drop_rule_lesson_links.sql`). `get_rule_context` no longer returns `linked_lessons` and `get_rule_timeline` no longer returns `linked_lessons_summary`; both always returned an empty list before. The columns `lessons.originated_rule_id` and `rules.originated_lesson_id` still exist but are inert (nothing writes or reads them): SQLite cannot drop foreign-key columns without rebuilding the table, so they were left in place. Existing rules, lessons and `.md` files are unaffected.
+

@@ -1,3 +1,5 @@
+# Axiom Meridian
+
 ## Index
 
 0. [Project fact sheet](#0-project-fact-sheet)
@@ -170,10 +172,10 @@ graph TB
 
 ### **2.3. High-level project description and file structure**
 
-> **Note:** this repository (`axiom-meridian-project`) is the capstone's documentation deliverable and hosts `docs/`, `openspec/`, and `prompts/`. The source-code structure shown below corresponds to the server's reference implementation (working checkout `axiom-meridian/`), which evolves in parallel to this documentation and is what the already-delivered tickets (section 6) build on.
+> **Note:** this repository (`axiom-meridian-project`) hosts both the server's source code (`src/meridian/`, `tests/`, `scripts/`) and its documentation (`docs/`, `openspec/`, `prompts.md`). The tree below is the server's source layout; the repository-level layout follows it.
 
 ```
-axiom-meridian/
+axiom-meridian-project/
 ├── src/meridian/
 │   ├── server.py              # MCP tool registration + security pattern
 │   ├── config.py              # Configuration loading (env vars, paths)
@@ -213,15 +215,21 @@ axiom-meridian/
 └── pyproject.toml
 ```
 
-In this repository (`axiom-meridian-project`), the structure reflects its *documentation-first* nature:
+Repository-level layout, including the documentation artifacts:
 
 ```
 axiom-meridian-project/
-├── docs/                      # Baseline documentation (charter, architecture, data model...)
+├── src/meridian/              # Server source (tree above)
+├── tests/                     # unit / integration / contract / benchmarks
+├── scripts/                   # install.sh, uninstall.sh and release/CI checks
+├── docs/                      # Charter, architecture, data model, stories, tickets, ADRs
 ├── openspec/
 │   ├── specs/                 # Baseline of already-delivered capabilities
-│   └── changes/                # Active change proposals (backlog)
-├── prompts/                   # Project working prompts
+│   └── changes/               # Active change proposals (backlog)
+├── .github/workflows/         # ci.yml (tests + lint + distribution checks), release.yml
+├── prompts.md                 # AI prompts used to produce this documentation
+├── CLAUDE.md                  # Project rules for AI coding agents
+├── CONTRIBUTING.md            # Branch, commit and PR conventions
 └── README.md
 ```
 
@@ -229,7 +237,7 @@ axiom-meridian-project/
 
 Meridian requires no cloud infrastructure: it is a local process invoked by the MCP client (stdio) or, optionally, an HTTP/SSE server bound exclusively to `127.0.0.1` (`meridian serve <port>`), never `0.0.0.0`. In HTTP mode a random session token is emitted at startup, required as `Authorization: Bearer <token>` on every request; the token is never persisted and rotates on every restart.
 
-There is no documented deployment/CI pipeline in this repository yet — the current "deployment" is the local install via `scripts/install.sh` described in section 1.4. Hardening a networked deployment (multi-client, TLS, rate limiting) is identified as future work in [TICKET-015](docs/06-work-tickets.md#ticket-015--networked-non-localhost-deployment-hardening).
+Continuous integration lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml): on pushes to `main` and on every pull request it runs `ruff` and `pytest` on several operating systems (without the `rag` extra), `pytest` with the `rag` extra on Ubuntu, a build + `twine check`, and the distribution checks (version sync, skill safety scan, skill packaging). [`release.yml`](.github/workflows/release.yml) publishes to PyPI from a release tag. There is no automated deployment beyond that: the runtime "deployment" is the local install described in section 1.4. Hardening a networked deployment (multi-client, TLS, rate limiting) is identified as future work in [TICKET-015](docs/06-work-tickets.md#ticket-015--networked-non-localhost-deployment-hardening).
 
 ### **2.5. Security**
 
@@ -427,7 +435,6 @@ erDiagram
 | `lessons` | Incidents/lessons (`LL-<TECH>-NNN`) with structured fields (`what_happened`, `impact`, `root_cause`, `resolution`). FK `scope_id`, `originated_rule_id`. UK `code`. |
 | `lesson_history` | Append-only audit trail of lesson changes. |
 | `lesson_tags` | Normalized tags for lessons, mirroring `rule_tags`. |
-| `rule_lesson_links` | Bidirectional links between a rule and the lesson(s) that originated or reference it. Constraint: uniqueness of the `(rule_id, lesson_id, link_type)` tuple. |
 | `project_scope_resolution` | Cache of the resolved scope chain for a project. PK `project_id`. |
 | `pr_audits` | Record of every `audit_pr()` call: rules evaluated, violations found, diff hash. |
 | `planning_checks` | Record of every `check_feature_against_rules()` call. |
@@ -435,6 +442,27 @@ erDiagram
 | `access_log` | Security audit trail — every tool invocation, its required access level, and its outcome (`success` / `denied` / `error`). Sensitive parameters are never logged. |
 | `id_counters` | Atomic counters for generating sequential, human-readable IDs, via `UPDATE ... RETURNING` (never `MAX(id)`). |
 | `indexed_files` | Per-file freshness fingerprint (`mtime`, `content_hash`) used to validate that cached text still matches the Markdown file on disk. |
+
+#### Allowed values
+
+SQLite only enforces `status` on `rules`/`lessons` (`CHECK`); the other columns are validated by the application, so the values below are the ones the code accepts or writes.
+
+| Column | Values | Enforced by |
+|---|---|---|
+| `rules.severity`, `lessons.severity`, proposal `metadata.severity` | `low`, `medium`, `high`, `critical` | `_VALID_SEVERITIES` in `tools/extraction.py` (proposal metadata); not a DB constraint on `rules`/`lessons` |
+| `rules.status`, `lessons.status` | `active` (default), `deprecated` | `CHECK` constraint in `db/schema.sql` |
+| `pending_proposals.type` | `rule`, `lesson`, `update` | `create_pending_proposal` |
+| `pending_proposals.status` | `pending` (default), `approved`, `rejected` | application code (`approve_proposal`, `reject_proposal`); `edit_proposal` keeps `pending` |
+| `rule_history.change_type` | `CREATED`, `UPDATED`, `DEPRECATED`, `PROMOTED` | application code |
+| `lesson_history.change_type` | `CREATED`, `UPDATED`, `DEPRECATED` | application code |
+| `scopes.type` | `global`, `project` | seed data and `create_project` |
+| `access_log.result` | `success`, `denied`, `error` | `_security_pattern` in `server.py` |
+
+#### Rule ↔ lesson relationship
+
+The relationship between a rule and the lesson that originated it lives **only in the lesson's Markdown block**, in its `**Originó regla:**` field, which the atomic parser reads (`atomic_parser.LESSON_FIELD_KEYS`) and the block builder writes. Following the Markdown-first rule, that field is the source of truth; it is not copied into SQLite.
+
+The `rule_lesson_links` table was never written by any code path, so it was removed in TICKET-022 (migration `007_drop_rule_lesson_links.sql`). `get_rule_context` no longer returns `linked_lessons` and `get_rule_timeline` no longer returns `linked_lessons_summary`; both always returned an empty list before. The columns `lessons.originated_rule_id` and `rules.originated_lesson_id` still exist but are inert (nothing writes or reads them): SQLite cannot drop foreign-key columns without rebuilding the table, so they were left in place. Existing rules, lessons and `.md` files are unaffected.
 
 Extended detail, including the atomic block format and the ID-generation strategy, in [docs/04-data-model.md](docs/04-data-model.md).
 
@@ -444,7 +472,121 @@ Extended detail, including the atomic block format and the ID-generation strateg
 
 Meridian does not expose a conventional REST API: it exposes a set of typed MCP tools (25+ in the reference implementation — `query_rules`, `audit_pr`, `create_pending_proposal`, etc.), invoked through the MCP protocol (stdio or HTTP/SSE) rather than HTTP routes with verbs. Forcing an **OpenAPI 3** specification onto this interface would be misleading: OpenAPI models resources and HTTP verbs, whereas an MCP tool is a function with an input/output schema (JSON Schema) and a "an action a model can invoke" semantics — closer to a function signature than to an endpoint.
 
-As a formal alternative, this project will adopt a **Semantic Tool Definition via Declarative Schema, or Model-Oriented Documentation**: one document per tool specifying, in JSON Schema, its input parameters, the required access level (`read`/`analyze`/`write`), the response shape, and invocation examples — the same kind of contract already validated by `tests/contract/test_mcp_tool_signatures.py` in the reference implementation, but exposed as product documentation rather than only as a test. This convention has been identified but is **not yet implemented** in the project's documentation; it will be addressed in a later delivery, documenting at minimum the three most-used tools (`query_rules`, `audit_pr`, `create_pending_proposal`/`approve_proposal`).
+As a formal alternative, each tool is documented as a **semantic tool definition**: its input parameters as JSON Schema, the access level it requires, the shape of its response, and an example. The contracts of the three most-used tools are below; they are taken from the signatures in `src/meridian/server.py` and are guarded against backwards-incompatible changes by `tests/contract/test_mcp_tool_signatures.py`. The remaining tools follow the same pattern (see the `@mcp.tool()` docstrings and `TOOL_ACCESS_LEVELS` in `src/meridian/utils/security.py`). The behavioral requirements behind them (Requirement/Scenario, BDD) live in [`openspec/specs/`](openspec/specs/), notably `scoped-knowledge-consumption`, `pr-and-planning-audits` and `knowledge-lifecycle-governance`.
+
+Every tool is gated by the `MERIDIAN_ACCESS_LEVEL` environment variable (`read` < `analyze` < `write`). A call above the configured level returns `{"error": "ACCESS_DENIED", ...}` and is recorded in `access_log` with result `denied`.
+
+### 4.1. `query_rules` — query the rules that apply to a project
+
+**Access level:** `read`.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "project_id": {"type": "string", "description": "Project id, with or without the 'project-' prefix."},
+    "category": {"type": ["string", "null"], "description": "e.g. 'quality', 'security', 'architecture'."},
+    "severity": {"type": ["string", "null"], "enum": ["low", "medium", "high", "critical", null]},
+    "tags": {"type": ["string", "null"], "description": "Comma-separated; exact tag equality, not substring."},
+    "query_text": {"type": ["string", "null"], "description": "Free text. Enables semantic search when ChromaDB has embeddings; otherwise plain SQL filtering."},
+    "format": {"type": "string", "enum": ["json", "toon"], "default": "json"},
+    "detail": {"type": "string", "enum": ["summary", "full"], "default": "summary"},
+    "include_deprecated": {"type": "boolean", "default": false}
+  },
+  "required": ["project_id"]
+}
+```
+
+**Response:** a string (JSON, or `toon` compact tabular) with one entry per rule found across the project's scope chain, most specific scope first. `detail="full"` adds `text`, served from the SQLite index after a per-file freshness check; if the backing `.md` file changed since it was indexed, that row returns `"text": null` and `"error": "STALE_INDEX"`.
+
+```json
+// query_rules(project_id="payments", severity="high", detail="summary")
+[
+  {"code": "RN-JAVA-004", "scope_id": "global-java", "severity": "high",
+   "category": "quality", "applies_to": "**/*.java", "tags": ["testing"]}
+]
+```
+
+### 4.2. `audit_pr` — audit a pull request diff against the project's rules
+
+**Access level:** `analyze`.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "pr_diff": {"type": "string", "description": "The PR's unified diff text."},
+    "project_id": {"type": "string", "description": "Project whose active rules and lessons are audited against."}
+  },
+  "required": ["pr_diff", "project_id"]
+}
+```
+
+**Response:** a JSON object. Meridian does not judge the diff: it persists an audit record (`pr_audits`, with the SHA-256 of the diff and a snapshot of the rule versions evaluated) and returns the diff with the applicable rules and lessons (`detail="full"`) so the calling LLM classifies violations.
+
+```json
+{
+  "audit_id": "audit-0001",
+  "pr_diff": "diff --git a/src/Service.java b/src/Service.java ...",
+  "rules": [{"code": "RN-JAVA-004", "severity": "high", "text": "..."}],
+  "lessons": [{"code": "LL-JAVA-002", "severity": "medium", "what_happened": "..."}],
+  "instruction_for_client": "Analyze the PR diff against the provided rules and lessons. ..."
+}
+```
+
+### 4.3. `create_pending_proposal` + `approve_proposal` — the proposal lifecycle
+
+Knowledge only enters the Markdown files through a proposal that a human approves. `create_pending_proposal` stages it; `approve_proposal` is the single choke point that writes it.
+
+**`create_pending_proposal`** — access level `analyze`. Does not touch `rules`, `lessons` or any `.md` file.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "type": {"type": "string", "enum": ["rule", "lesson", "update"]},
+    "proposed_text": {"type": "string", "description": "Body only (**Regla:** / **Qué pasó:**); a full atomic block is also accepted and split. <private> tags are stripped."},
+    "suggested_scope_id": {"type": "string", "description": "Ignored for type='update', which inherits the target's scope."},
+    "target_id": {"type": ["string", "null"], "description": "type='update': the existing RN-*/LL-* id to replace."},
+    "target_type": {"type": ["string", "null"], "enum": ["rule", "lesson", null]},
+    "suggested_attributes": {"type": ["string", "null"], "description": "JSON array of {\"key\", \"value\"} dynamic attributes (ADR-002)."},
+    "source_type": {"type": ["string", "null"], "description": "e.g. 'transcript', 'manual'."},
+    "source_ref": {"type": ["string", "null"], "description": "e.g. a meeting id or PR link."},
+    "metadata": {"type": ["string", "null"], "description": "JSON object with the other block fields (rule: category, severity, applies_to, tags, source; lesson: project, date_occurred, severity, area_affected, tags, impact, root_cause, resolution, originated_rule_id)."}
+  },
+  "required": ["type", "proposed_text", "suggested_scope_id"]
+}
+```
+
+**Response:** the new proposal id as a plain string, e.g. `prop-0007`.
+
+**`approve_proposal`** — access level `write`.
+
+```json
+{
+  "type": "object",
+  "properties": {"proposal_id": {"type": "string", "description": "The pending_proposals id to approve."}},
+  "required": ["proposal_id"]
+}
+```
+
+**Response:** a JSON object. For `rule`/`lesson` a new `RN-`/`LL-` code is allocated and the block is appended to the scope's `.md` file; for `update` the target's block is rewritten in place. In both cases the row, its history entry and the proposal status (`approved`) are updated together.
+
+```json
+{
+  "proposal_id": "prop-0007",
+  "code": "RN-JAVA-021",
+  "scope_id": "global-java",
+  "file_path": "<KNOWLEDGE_BASE_PATH>/knowledge-base/global/java.md",
+  "file_offset": 18342,
+  "byte_length": 611,
+  "embedded": true
+}
+```
+
+`embedded` reports whether the new entry was added to the semantic index: `true`/`false`, or `null` when the `rag` extra is not installed. It does not affect whether the approval itself succeeded.
+
+> The examples are illustrative: the field names come from the implementation, the values are not from a real knowledge base.
 
 ---
 
@@ -478,7 +620,7 @@ Full catalog (delivered + backlog, traced to [OpenSpec](openspec/)) in [docs/06-
 
 **Pull Request 1** — [#1 — Removing duplicates](https://github.com/abeljumanuel/axiom-meridian-project/pull/1) (merged). Cleanup of duplicated content in the baseline documentation prior to this delivery.
 
-**Pull Request 2** — *Pending.* Will be referenced once a PR contains the full first delivery: "Technical documentation: project fact sheet, description, architecture, data model, user stories, work tickets."
+**Pull Request 2** — [#2 — Delivery 1: Baseline technical documentation (README restructure + prompts log)](https://github.com/abeljumanuel/axiom-meridian-project/pull/2) (merged). The full first delivery: project fact sheet, description, architecture, data model, user stories and work tickets.
 
 **Pull Request 3** — *Pending.*
 
