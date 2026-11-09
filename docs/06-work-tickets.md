@@ -117,6 +117,12 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 - **Evidence:** `apply_pending_migrations` built the name with `%Y%m%d-%H%M%S`; the failing assertion was `assert 2 == 1` on `len(backups)`; the same test passed on Linux and macOS.
 - **OpenSpec change:** none; no spec describes the backup file name.
 
+### TICKET-026 — Run `audit_pr` in CI on the project's own rules
+- **Type:** CI | **Priority:** Should | **Status:** In review
+- **Description:** LIDR's review of the first delivery noted that CI ran lint and tests but not `audit_pr`, Meridian's own PR-audit tool. The new `audit-pr` job builds a throwaway knowledge base from the project rules (`RN-AXIOM-*`, nine at the time of writing), now versioned in `.meridian/knowledge-base/projects/axiom-meridian.md`, runs `audit_pr` on the pull request diff and writes the audit ID, the diff stats and the rules to check against in the job summary (`scripts/audit_pr_ci.py`). `audit_pr` does not decide violations (it returns the applicable rules for a reviewer or LLM to judge), so the job is advisory: it fails only if the audit cannot run. An LLM verdict step is left out because it needs an API secret, has a cost and does not run on fork pull requests.
+- **Evidence:** run locally against the real rules and the last three commits of `main`: 8 rules evaluated at the time (9 after `RN-AXIOM-009` was approved), 15 files, `audit-0001` recorded in a temporary database; `tests/unit/test_audit_pr_ci.py` covers the rules file, the audit record, the untouched source file and the argument handling.
+- **OpenSpec change:** none; no spec covers CI.
+
 ### Delivered without a ticket
 
 These OpenSpec changes were completed and archived with the 0.1.0 release but never had a ticket of their own; they're listed here so the record is complete.

@@ -1,7 +1,9 @@
 # Lint + tests on every push/PR. The no-RAG matrix exercises the default
 # (`pip install axiom-meridian`) install on all three OSes by real absence of
 # torch/sentence-transformers/chromadb; one Linux job runs with the `rag`
-# extra so the semantic-search suites run too.
+# extra so the semantic-search suites run too. `audit-pr` runs Meridian's own
+# audit_pr on every pull request (advisory: it lists the rules the diff must be
+# checked against and never fails on the content of the diff).
 name: ci
 
 on:
@@ -53,3 +55,18 @@ jobs:
         run: uv run --no-project python scripts/check_skill_safety.py
       - name: Package the skill zip (verified byte-for-byte)
         run: uv run --no-project python scripts/package_skill.py
+
+  audit-pr:
+    name: audit_pr (advisory)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Audit the pull request against the project rules
+        run: uv run python scripts/audit_pr_ci.py --base-ref "origin/${{ github.base_ref }}" >> "$GITHUB_STEP_SUMMARY"
