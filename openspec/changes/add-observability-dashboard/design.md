@@ -9,7 +9,7 @@ Meridian's MCP tools are agent-facing. There is no human-facing view of the know
 
 **Non-Goals:**
 - Any write path — this is explicitly out of scope, not just unimplemented.
-- Being part of the MCP protocol surface — it is a separate process/stack, and explicitly a deferred, optional companion to the core capstone deliverable.
+- Being part of the MCP protocol surface — it is a separate process/stack and an optional companion, installed through the `dashboard` extra.
 
 ## Decisions
 
@@ -27,6 +27,6 @@ The projector queries ChromaDB's `meridian_rules`/`meridian_lessons` collections
 
 ## Risks / Trade-offs
 
-- Adds a second stack (HTTP API + frontend + its own auth/testing surface) for a capability outside the core capstone scope — hence deferred, and only pursued if time remains after the core backlog (TICKET-012 through TICKET-016).
+- Adds a second stack (HTTP API + frontend + its own auth/testing surface) for a capability outside the core scope — hence kept in an optional extra and limited to the requirements in this change's spec.
 - Dimensionality reduction (t-SNE/UMAP) is stochastic and can mislead if over-interpreted as exact distance; the UI should present it as an exploratory aid, not ground truth, and avoid recomputing the projection on every minor interaction (see facet-switch scenario).
 - Projecting a very large number of vectors client-side can hurt render performance; acceptance criteria should cap or paginate rendered points if a scope's embedding count grows large.

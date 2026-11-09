@@ -138,8 +138,8 @@ Formal spec: [`openspec/changes/add-observability-dashboard/`](../openspec/chang
 ### US-H1 — Inspect Meridian's status and contents visually
 **As a** knowledge curator or platform admin, **I want** a read-only web dashboard showing server health, indexed scopes, active/deprecated rules and lessons, pending proposals, a rendered usage manual, and an embedding projector, **so that** I don't have to run ad-hoc Python snippets or read raw Markdown/SQLite to understand the current state of the knowledge base.
 
-- **Priority:** Could
-- **Note:** explicitly a nice-to-have companion, not part of the core MCP/knowledge-governance value proposition — see [TICKET-017](06-work-tickets.md#ticket-017--read-only-observability-dashboard).
+- **Priority:** Should
+- **Note:** a companion to the core MCP/knowledge-governance value proposition, selected for the final delivery as the frontend ticket — see [TICKET-017](06-work-tickets.md#ticket-017--read-only-observability-dashboard).
 
 ## Related Documents
 
