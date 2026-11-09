@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The pre-migration database backup name now includes microseconds
+  (`<db>.bak-YYYYMMDD-HHMMSS-ffffff`). Two backups taken within the same
+  second used to share a name, so the second overwrote the first.
+
 ### Added
 
 - `create_pending_proposal` takes an optional `metadata` JSON object with the

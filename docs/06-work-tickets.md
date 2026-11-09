@@ -111,6 +111,12 @@ Ticket fields: `ID`, `Title`, `Type`, `Priority`, `Status`, `Related story`, `De
 - **Evidence:** `grep` over `src/` shows no `INSERT` into `rule_lesson_links` and none of the `INSERT INTO rules`/`lessons` statements set the `originated_*` columns; the two readers are the only references to the table.
 - **OpenSpec change:** none; no spec in `openspec/specs/` mentions the removed fields.
 
+### TICKET-027 — Pre-migration backups no longer overwrite each other
+- **Type:** Bug fix | **Priority:** Should | **Status:** In review
+- **Description:** The backup taken before pending migrations was named with a one-second timestamp, so two backups created within the same second got the same name and the second silently replaced the first. A test depending on that (`test_failing_migration_rolls_back_and_leaves_a_backup`) failed intermittently on `windows-latest`, where creating the database takes longer than a second and the names differ (CI run 42560223791 on PR #14). The name now includes microseconds, and the test counts only the backups created by the call under test.
+- **Evidence:** `apply_pending_migrations` built the name with `%Y%m%d-%H%M%S`; the failing assertion was `assert 2 == 1` on `len(backups)`; the same test passed on Linux and macOS.
+- **OpenSpec change:** none; no spec describes the backup file name.
+
 ### Delivered without a ticket
 
 These OpenSpec changes were completed and archived with the 0.1.0 release but never had a ticket of their own; they're listed here so the record is complete.
