@@ -131,7 +131,9 @@ These OpenSpec changes were completed and archived with the 0.1.0 release but ne
 
 ## Backlog
 
-Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change proposal under `openspec/changes/`, which holds the formal, testable acceptance criteria (as delta specs) plus the design and task breakdown. The ticket entries here stay short — ID, description, status — and defer to OpenSpec for the detail.
+Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change proposal under `openspec/changes/`, which holds the formal, testable acceptance criteria (as delta specs) plus the design and task breakdown.
+
+The three tickets selected for the final delivery — **TICKET-014** (backend), **TICKET-023** (database) and **TICKET-017** (frontend) — are written out in full here, with implementation steps, acceptance criteria and risks, so each can be picked up without opening OpenSpec first. The remaining Backlog tickets stay short and defer to OpenSpec.
 
 ### TICKET-012 — Windows one-line installer
 - **Type:** Feature | **Priority:** Should | **Status:** Superseded by [TICKET-018](#ticket-018--cross-platform-installation-and-distribution)
@@ -139,18 +141,63 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **OpenSpec change:** `add-windows-installer` (removed — superseded by [`improve-installation-and-distribution`](../openspec/changes/archive/2026-10-15-improve-installation-and-distribution/))
 
 ### TICKET-013 — V2 semantic search upgrade
-- **Type:** Feature / Performance | **Priority:** Could | **Status:** Backlog
+- **Type:** Feature / Performance | **Priority:** Could | **Status:** Deferred (v2, outside the final delivery)
 - **Related story:** US-F1
 - **Description:** When the rule/lesson volume exceeds roughly 1,000 entries or more accurate multilingual retrieval is needed: evaluate migrating the embedding model to `BAAI/bge-m3` (567M params, 100+ languages) and evaluate alternative local vector stores (LanceDB, Qdrant local).
 - **OpenSpec change:** [`upgrade-semantic-search-v2`](../openspec/changes/upgrade-semantic-search-v2/)
 
 ### TICKET-014 — Semantic clustering for redundancy detection
-- **Type:** Feature | **Priority:** Could | **Status:** Backlog
-- **Description:** Cluster rules by embedding similarity to surface likely-duplicate or overlapping rules across scopes, as a curator-facing report rather than an automatic merge.
+- **Type:** Feature (backend) | **Priority:** Should | **Status:** Planned (final delivery)
+- **Related story:** none yet; the curator need is described in the OpenSpec proposal
+- **Description:** Add a read-only tool, `find_redundant_rules`, that compares the embeddings the rules already have and returns candidate duplicate or overlapping rule pairs above a configurable similarity threshold, within a scope or across a scope and its ancestors. It is a curator-facing report: it never merges, deprecates or edits a rule. Persisting the curator's decision on each pair is a separate ticket ([TICKET-023](#ticket-023--persist-curator-review-of-redundancy-candidates)).
+- **Steps:**
+  1. Read a scope's rule vectors from the `meridian_rules` ChromaDB collection (`rag/vector_store.py`) without generating any.
+  2. For each rule, take its nearest neighbours and keep pairs with cosine similarity at or above the threshold (default chosen from the validation set in step 5, overridable per call). Order each pair so `(a, b)` is deterministic, and drop duplicates.
+  3. Join the pairs with `rules` to return code, scope, severity, status and a short text excerpt for both sides; skip deprecated rules by default.
+  4. Register the tool in `server.py` through `_security_pattern` and add it to `TOOL_ACCESS_LEVELS` as `read`. Add `RAG_NOT_INSTALLED` handling like the other RAG paths.
+  5. Build a fixture of intentionally duplicated, near-duplicated and unrelated rules, measure recall and false positives at the default threshold, and document the result.
+  6. Document the tool contract (JSON Schema and example) in README §4 alongside the existing tools.
+- **Acceptance criteria:**
+  - Given rules with embeddings, the tool returns the pairs above the threshold, each with both rule codes and the similarity score; changing the threshold changes the result.
+  - Given a scope with no embeddings, it returns an empty result and does not call `generate_embeddings` or touch ChromaDB writes.
+  - Without the `rag` extra it returns `RAG_NOT_INSTALLED`, not a traceback.
+  - After a call, `rules`, `lessons`, every `.md` file and `indexed_files` are byte-identical to before.
+  - On the duplicate fixture, recall at the default threshold is at least 0.8 and the report lists no pair of unrelated rules.
+  - The tool is available at every access level (`read` and above) and each call is written to `access_log`.
+- **Risks:**
+  - Quality depends on embedding coverage: scopes that were never embedded produce nothing, which a curator could read as "no duplicates". The empty result must say why.
+  - A single global threshold trades noise for missed duplicates, and similarity between short rules in Spanish and English may be lower than the model's English benchmarks. Mitigation: configurable threshold and the fixture in step 5.
+  - Pairwise comparison grows quadratically; nearest-neighbour queries with a cap per rule keep it bounded, but a scope with thousands of rules needs a limit and pagination.
+  - Stale embeddings (rule edited after `generate_embeddings`) produce wrong pairs. The report should flag rules whose `indexed_files` hash changed after their embedding.
 - **OpenSpec change:** [`add-redundancy-detection`](../openspec/changes/add-redundancy-detection/)
 
+### TICKET-023 — Persist curator review of redundancy candidates
+- **Type:** Feature (database) | **Priority:** Should | **Status:** Planned (final delivery) | **Depends on:** [TICKET-014](#ticket-014--semantic-clustering-for-redundancy-detection)
+- **Description:** The redundancy report from TICKET-014 is recomputed on every call, so a pair a curator already judged to be a false positive would come back every time. Add one table, `redundancy_reviews`, that stores the curator's decision per rule pair, and a write-level tool, `review_redundancy_pair`, to record it. The report then hides dismissed pairs and marks confirmed ones. This is the only new persistent state in the redundancy feature and it never modifies `rules`, `lessons` or any `.md` file.
+- **Schema (migration `008_redundancy_reviews.sql`, additive):** `id INTEGER PRIMARY KEY`, `rule_a_id`, `rule_b_id` (both `REFERENCES rules(id)`, with `CHECK (rule_a_id < rule_b_id)` so a pair has one canonical order), `similarity REAL`, `decision TEXT CHECK (decision IN ('dismissed','confirmed'))`, `note TEXT`, `decided_by TEXT`, `decided_at TEXT`, `UNIQUE (rule_a_id, rule_b_id)`, plus an index on `decision`.
+- **Steps:**
+  1. Write migration 008 (new table only, `CREATE TABLE IF NOT EXISTS`) and add the table to `schema.sql`, following ADR-007's additive-only rule.
+  2. Add `review_redundancy_pair(rule_a, rule_b, decision, note)` in `tools/`, registered through `_security_pattern`, access level `write`; normalize the pair order, strip private tags from `note`, reject unknown rules and `a == b`, and upsert so a later decision replaces the earlier one.
+  3. Make `find_redundant_rules` left-join the table: hide `dismissed` pairs unless `include_reviewed=true`, and mark `confirmed` ones.
+  4. Handle deprecated rules: a review stays valid (it is history), but the pair no longer appears in the report because deprecated rules are skipped.
+  5. Add tests: migration on a database at `user_version = 7` with existing rules, constraint violations, upsert, and report filtering. Reuse the snapshot approach of `tests/integration/test_rule_lesson_links_removal.py` to prove existing rows are untouched.
+  6. Document the table and the allowed values in README §3.2 and `docs/04-data-model.md`.
+- **Acceptance criteria:**
+  - Migrating a database at version 7 creates the table, sets `user_version = 8`, and leaves every existing row of every other table unchanged.
+  - Recording `(RN-A, RN-B)` and `(RN-B, RN-A)` produces one row, in canonical order; a second decision on the same pair updates it instead of failing.
+  - Unknown rule codes, `a == b` and a `decision` outside the allowed values return an error response and write nothing.
+  - After a pair is dismissed it no longer appears in `find_redundant_rules`; with `include_reviewed=true` it appears marked `dismissed`.
+  - The tool is refused at `read` and `analyze` levels and accepted at `write`; each call is logged in `access_log`.
+  - A knowledge base that never uses the feature behaves exactly as before the migration.
+- **Risks:**
+  - Pair identity depends on rule IDs. If a rule is deleted outside Meridian, the foreign key blocks the delete; if a rule is re-created under a new code, the old review does not carry over. Acceptable, and documented.
+  - A dismissal can become wrong when either rule is later edited. Mitigation: store `similarity` and `decided_at`, so the report can flag a dismissed pair whose rules changed after the decision.
+  - It adds a write path to a feature that was read-only. Mitigation: the write is limited to this table and the tool requires the `write` level.
+  - A migration cannot be dropped cleanly once released (SQLite and ADR-007), so the table design should be settled before the release.
+- **OpenSpec change:** [`add-redundancy-review-state`](../openspec/changes/add-redundancy-review-state/)
+
 ### TICKET-015 — Networked (non-localhost) deployment hardening
-- **Type:** Feature / Security | **Priority:** Could | **Status:** Backlog
+- **Type:** Feature / Security | **Priority:** Could | **Status:** Deferred (v2, outside the final delivery)
 - **Related story:** US-E3
 - **Description:** The HTTP/SSE transport is currently scoped to `127.0.0.1` by design. Evaluate what's required (TLS, multi-token/per-client auth, rate limiting) to safely support a shared, networked deployment for a team, without weakening the current localhost-only default.
 - **OpenSpec change:** [`harden-networked-deployment`](../openspec/changes/harden-networked-deployment/)
@@ -161,10 +208,30 @@ Each Backlog ticket below has a corresponding [OpenSpec](../openspec/) change pr
 - **OpenSpec change:** `link-source-ref-to-engram` (removed — ticket discarded)
 
 ### TICKET-017 — Read-only observability dashboard
-- **Type:** Feature | **Priority:** Could | **Status:** Backlog
+- **Type:** Feature (frontend) | **Priority:** Should | **Status:** Planned (final delivery)
 - **Related story:** US-H1
-- **Description:** Build a small, standalone frontend for humans (not agents) to visually inspect Meridian's state without writing Python snippets — server health, scope hierarchy, rule/lesson counts, pending proposals, a rendered usage manual, and an embedding projector. Runs as a separate local process, reusing `knowledge_consumption` functions as a library; never speaks the MCP protocol or performs writes.
-- **Explicitly deferred because:** it sits outside the core MCP/knowledge-governance scope of the capstone (agent-facing tools, scope resolution, governed writes, RAG) and would add a second stack (HTTP API + frontend + its own auth/testing surface) without changing what an agent can do. Treated as an optional companion, evaluated only if time remains after the core backlog above.
+- **Description:** A small web dashboard for humans (not agents) to inspect Meridian without writing Python snippets: server health, scope hierarchy, active/deprecated rule and lesson counts per scope, pending proposals, a usage manual rendered from `docs/`, and an embedding projector. It runs as a separate local process on `127.0.0.1`, imports the read-level `knowledge_consumption` functions as a library, never speaks MCP and never writes. It ships as an optional `dashboard` extra so the base install stays small (the same approach TICKET-018 used for `rag`).
+- **Steps:**
+  1. Add the `dashboard` extra (FastAPI, uvicorn, Jinja2, `umap-learn`) and a `meridian dashboard` command that starts the process bound to `127.0.0.1`; fail with a clear message when the extra is missing.
+  2. Build the API layer over `query_rules`, `query_lessons`, `get_project_scope_resolution`, `get_rule_audit_log` and `list_pending_proposals`. Import only read-level functions; add a test that fails if the dashboard package imports a write-level tool.
+  3. Build server-rendered pages (Jinja2 with HTMX): health, scope tree, counts, pending proposals. No JavaScript build step.
+  4. Render the usage manual from `README.md` and `docs/` at request time.
+  5. Add the embedding projector: read a scope's vectors from ChromaDB, reduce to 2D with UMAP (PCA when there are few vectors), return coordinates once, and let the facet selector (scope, category, severity) recolor client-side without recomputing. Cap rendered points and show an empty state when there are no embeddings.
+  6. Run it against a populated knowledge base, check that `meridian.db` and every `.md` are unchanged, and attach screenshots to the PR.
+- **Acceptance criteria:**
+  - `meridian dashboard` starts a process separate from the MCP server and listens only on `127.0.0.1` by default.
+  - The home page shows server health, the scope tree, active and deprecated counts per scope, and the pending proposals.
+  - The usage manual page is generated from `docs/` and README: changing a source file changes the page without editing dashboard code.
+  - For a scope with embeddings the projector shows a hoverable scatter plot with the rule or lesson ID and a short text; for a scope without embeddings it shows an empty-state message and calls no write-level tool.
+  - Switching the colour facet does not trigger a new projection request.
+  - After browsing every page, `meridian.db` and all `.md` files are byte-identical to before, and `access_log` has no new write entries.
+  - Without the `dashboard` extra the base install is unchanged and the command explains how to install it.
+- **Risks:**
+  - It adds a second stack (HTTP, templates, dependencies) and a new attack surface even on localhost. Mitigation: bind to `127.0.0.1` only, no write routes, no CORS, no user input reaching file paths or SQL.
+  - UMAP is stochastic and can look like exact distances. Mitigation: fixed seed, and a visible note that the plot is exploratory.
+  - Heavy dependencies (`umap-learn` pulls in `numba`) could slow installation or fail on some platforms; CI runs on three OSes. Mitigation: keep them in the optional extra and test the dashboard job on Linux first.
+  - Reading ChromaDB while the MCP server writes to it could return a partial view. Mitigation: open it read-only and treat any error as an empty state.
+  - Scope creep: the dashboard is the easiest ticket to grow. The spec's four requirements are the limit; anything else goes to a new ticket.
 - **OpenSpec change:** [`add-observability-dashboard`](../openspec/changes/add-observability-dashboard/)
 
 ## Related Documents

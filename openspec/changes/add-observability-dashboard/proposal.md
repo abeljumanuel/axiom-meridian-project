@@ -1,6 +1,6 @@
 ## Why
 
-Curators and admins currently have to run ad-hoc Python snippets or read raw Markdown/SQLite to understand Meridian's state — server health, indexed scopes, rule/lesson counts, pending proposals (TICKET-017 / US-H1). This sits outside the core MCP/knowledge-governance scope of the capstone and is explicitly deferred, but is valuable as an optional companion, evaluated only if time remains after the core backlog.
+Curators and admins currently have to run ad-hoc Python snippets or read raw Markdown/SQLite to understand Meridian's state — server health, indexed scopes, rule/lesson counts, pending proposals (TICKET-017 / US-H1). It sits outside the core MCP/knowledge-governance scope, but it was selected for the final delivery as the project's frontend ticket, shipped as an optional `dashboard` extra so the base install is unchanged.
 
 ## What Changes
 
