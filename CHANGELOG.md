@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI runs Meridian's own `audit_pr` on every pull request (`audit-pr` job,
+  `scripts/audit_pr_ci.py`) against the project rules versioned in
+  `.meridian/knowledge-base/`. It is advisory and writes the audit ID and the
+  rules to check against in the job summary.
+
 - `create_pending_proposal` takes an optional `metadata` JSON object with the
   block fields other than the body (rules: category, severity, applies-to,
   tags, source; lessons: project, date, severity, affected area, tags,

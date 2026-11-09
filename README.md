@@ -226,7 +226,8 @@ axiom-meridian-project/
 ├── openspec/
 │   ├── specs/                 # Baseline of already-delivered capabilities
 │   └── changes/               # Active change proposals (backlog)
-├── .github/workflows/         # ci.yml (tests + lint + distribution checks), release.yml
+├── .github/workflows/         # ci.yml (tests + lint + distribution checks + audit_pr), release.yml
+├── .meridian/                 # The project's own rules (RN-AXIOM-*), audited by CI
 ├── prompts.md                 # AI prompts used to produce this documentation
 ├── CLAUDE.md                  # Project rules for AI coding agents
 ├── CONTRIBUTING.md            # Branch, commit and PR conventions
@@ -237,7 +238,7 @@ axiom-meridian-project/
 
 Meridian requires no cloud infrastructure: it is a local process invoked by the MCP client (stdio) or, optionally, an HTTP/SSE server bound exclusively to `127.0.0.1` (`meridian serve <port>`), never `0.0.0.0`. In HTTP mode a random session token is emitted at startup, required as `Authorization: Bearer <token>` on every request; the token is never persisted and rotates on every restart.
 
-Continuous integration lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml): on pushes to `main` and on every pull request it runs `ruff` and `pytest` on several operating systems (without the `rag` extra), `pytest` with the `rag` extra on Ubuntu, a build + `twine check`, and the distribution checks (version sync, skill safety scan, skill packaging). [`release.yml`](.github/workflows/release.yml) publishes to PyPI from a release tag. There is no automated deployment beyond that: the runtime "deployment" is the local install described in section 1.4. Hardening a networked deployment (multi-client, TLS, rate limiting) is identified as future work in [TICKET-015](docs/06-work-tickets.md#ticket-015--networked-non-localhost-deployment-hardening).
+Continuous integration lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml): on pushes to `main` and on every pull request it runs `ruff` and `pytest` on several operating systems (without the `rag` extra), `pytest` with the `rag` extra on Ubuntu, a build + `twine check`, the distribution checks (version sync, skill safety scan, skill packaging) and, on pull requests, `audit_pr` itself: the `audit-pr` job builds a throwaway knowledge base from the project's own rules in [`.meridian/knowledge-base/`](.meridian/knowledge-base/projects/axiom-meridian.md), runs `audit_pr` on the PR diff and writes the audit ID and the rules to check against in the job summary. It is advisory: `audit_pr` returns the applicable rules for a reviewer or LLM to judge and does not decide violations, so the job fails only if the audit cannot run. [`release.yml`](.github/workflows/release.yml) publishes to PyPI from a release tag. There is no automated deployment beyond that: the runtime "deployment" is the local install described in section 1.4. Hardening a networked deployment (multi-client, TLS, rate limiting) is identified as future work in [TICKET-015](docs/06-work-tickets.md#ticket-015--networked-non-localhost-deployment-hardening).
 
 ### **2.5. Security**
 

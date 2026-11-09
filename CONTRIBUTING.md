@@ -133,6 +133,21 @@ sections; these are the rules behind them.
    are done when the release is closed, in one `chore/close-X.Y.Z-release`
    pull request for everything that shipped (as in #5), not per ticket.
 
+## Project rules audited by CI
+
+The `audit-pr` job in `ci.yml` runs Meridian's own `audit_pr` on every pull
+request against the rules in
+`.meridian/knowledge-base/projects/axiom-meridian.md` (the `RN-AXIOM-*`
+rules) and lists them in the job summary. It is advisory: `audit_pr` returns
+the rules a diff must be checked against and does not decide violations, so
+the job fails only when the audit cannot run, for example if that file stops
+parsing.
+
+That file is a snapshot of the project scope of the maintainer's knowledge
+base. When a `RN-AXIOM-*` rule changes there, copy the file here in the same
+pull request, or CI keeps auditing against the old text. Global rules are not
+versioned.
+
 ## Pull request size
 
 A reviewer can only judge what fits in their head. Size is measured in
